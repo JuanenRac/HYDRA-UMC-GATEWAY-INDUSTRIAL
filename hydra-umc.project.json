@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "ecosystem": "HYDRA-UMC",
+  "name": "HYDRA-UMC-GATEWAY-INDUSTRIAL",
+  "version": "0.0.2",
+  "role": "api",
+  "stack": "node",
+  "technologies": [
+    "Node.js",
+    "Express",
+    "real TCP/HTTP reachability probes"
+  ],
+  "deployment_target": "cm5",
+  "maturity": "functional",
+  "family": "Industrial Gateway",
+  "parent": null,
+  "build": "npm install && npm run build.",
+  "notes": "GET /status makes a real, live reachability check against all 3 children on every request - verified end-to-end, including detecting a real killed sibling.",
+  "native_version": {
+    "file": "package.json",
+    "pattern": "\"version\":\\s*\"(\\d+)\\.(\\d+)\\.(\\d+)\""
+  }
+}

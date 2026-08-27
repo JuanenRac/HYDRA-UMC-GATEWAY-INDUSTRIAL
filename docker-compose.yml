@@ -1,0 +1,71 @@
+# =============================================================================
+# HYDRA-UMC GATEWAY INDUSTRIAL - Local Integration Stack: docker-compose.yml
+# Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
+# GPL-3.0 - see LICENSE
+# =============================================================================
+# This is the real integration point for the Industry 4.0 Gateway: it
+# brings up all three protocol bridges (HYDRA-UMC-OPCUA-SERVER,
+# HYDRA-UMC-MQTT-BROKER, HYDRA-UMC-MTCONNECT-ADAPTER) plus this repo's own
+# aggregation surface (src/server.ts's GET /status) as one Docker network,
+# on the same host ports each service already binds to standalone (see
+# each child's own README.md / src/server.ts) - so the whole Gateway can
+# be brought up with a single `docker compose up` during local development
+# or on a factory-floor host, without hand-wiring four separate processes.
+#
+# Layout assumption: the four HYDRA-UMC-GATEWAY-INDUSTRIAL/OPCUA-SERVER/
+# MQTT-BROKER/MTCONNECT-ADAPTER repos are checked out as sibling folders
+# (exactly how this ecosystem's GitHub org lays them out today - see
+# SONNET/PROJECT_INDEX.txt) - the three `context: ../...` paths below
+# depend on that layout, not on any monorepo restructuring.
+#
+# Every service already prints its own name/version/role/port to stdout
+# on real startup (see each project's own src/server.ts) - `docker compose
+# logs -f` is enough to confirm the whole Gateway is actually up, no
+# separate healthcheck tooling required for this first real integration
+# pass. Per-child HTTP/TCP reachability probes from the gateway's own
+# GET /status are tracked in mejoras_futuras.txt.
+
+services:
+  gateway-industrial:
+    build:
+      context: .
+    container_name: hydra-umc-gateway-industrial
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - opcua-server
+      - mqtt-broker
+      - mtconnect-adapter
+    restart: unless-stopped
+
+  opcua-server:
+    build:
+      context: ../HYDRA-UMC-OPCUA-SERVER
+    container_name: hydra-umc-opcua-server
+    ports:
+      - "4840:4840"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+
+  mqtt-broker:
+    build:
+      context: ../HYDRA-UMC-MQTT-BROKER
+    container_name: hydra-umc-mqtt-broker
+    ports:
+      - "1883:1883"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+
+  mtconnect-adapter:
+    build:
+      context: ../HYDRA-UMC-MTCONNECT-ADAPTER
+    container_name: hydra-umc-mtconnect-adapter
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
