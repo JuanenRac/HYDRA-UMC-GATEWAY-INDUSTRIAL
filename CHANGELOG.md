@@ -21,6 +21,15 @@ semantic-versioning judgment calls:
 
 ---
 
+## Documentation - Real HTTP API reference
+
+- **`docs/API.md`** (new) - `GET /status` documented from the actual
+  `server.ts`/`probes.ts` code: full real example response, every field's
+  exact meaning, and the env vars that configure each child probe.
+  Cross-checked against the existing real integration test suite
+  (`tests/server.test.ts`, `tests/probes.test.ts` - 9/9 passing).
+  Documentation-only - no code changed, no version bump.
+
 ## [0.0.2] - Real reachability checks against all three siblings
 
 - **`src/probes.ts`** - real network probes: `probeTcp()` (a real TCP connect, used for OPC-UA and MQTT - both raw TCP protocols) and `probeHttp()` (a real HTTP GET, used for MTConnect since it's already an HTTP service and a real `/probe` call is a stronger, application-level signal than a bare TCP connect). Neither performs a full protocol handshake yet (a real OPC-UA Hello or MQTT CONNECT) - documented explicitly as real, deferred scope rather than silently implied by the word "reachable".
