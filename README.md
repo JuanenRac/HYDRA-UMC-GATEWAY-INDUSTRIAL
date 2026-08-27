@@ -28,6 +28,9 @@ It acts as a multi-protocol translator, exposing internal robotic states and too
 * 🛡️ **Industrial Security:** Mutual TLS (mTLS) and certificate-based authentication for all factory connections.
 * 🔄 **State Mapping:** Real-time translation of Hydra's internal JSON state into standardized industrial address spaces.
 * ⚡ **High Reliability:** Dedicated lightweight bridge optimized for 24/7 industrial uptime.
+* 🚦 **Real v0 - Command Allowlist + Backpressure:** `POST /command` is gated by a default-deny allowlist per protocol, a bounded concurrency limit, and a real timeout - see "Honesty check" below for exactly what's enforced today.
+
+**Honesty check - what actually runs today:** `POST /command { protocol, operation, target }` is real: the operation must be explicitly allowlisted for its protocol (`403` if not - v0 only allows read-like/publish operations, nothing that writes to a live PLC), no more than a bounded number of commands run at once (`429` beyond that), and a command that doesn't resolve in time is reported as timed out (`504`) rather than left hanging. The default execution path reuses this project's own real reachability probes - honest that it stops short of an actual OPC-UA/MQTT/MTConnect protocol-level write, since none of the three children expose a real command API yet either. See `CHANGELOG.md` for exactly what shipped.
 
 ---
 
@@ -53,6 +56,9 @@ flowchart LR
 * **Why the entry point only prints identity/version, exits after a health-check listener comes up.** Andamiaje (scaffolding) stage: proving the process starts and stays up (not just runs-and-exits, unlike most of this ecosystem's other Node skeletons) precedes the real protocol-translation logic, since a real gateway is a long-running service by nature.
 * **How this fits the rest of the ecosystem.** The integration parent of the Industrial Gateway family - exposes HYDRA-UMC-SERVER's own state to factory-floor systems (MES/SCADA/historians) that speak OPC-UA, MQTT or MTConnect instead of this ecosystem's own REST/WebSocket API.
 * **`GET /status` makes a real, live check on every request.** `src/probes.ts` does a real TCP connect for OPC-UA/MQTT and a real HTTP `GET` for MTConnect against each child - `reachable`/`latencyMs`/`error` per child and an aggregated `allReachable` are computed at request time, not returned from a cached or static list. Verified end-to-end: all three real children were started, `/status` reported them all reachable, one was then actually killed, and the very next `/status` call correctly flipped only that child to unreachable with a real `ECONNREFUSED`. Host/port/URL per child are configurable via env vars, defaulting to the exact service names `docker-compose.yml` already uses.
+* **Why `POST /command`'s allowlist is default-deny, not default-allow.** An industrial gateway that forwards any operation string it's handed is a liability the moment a child exposes a real write path - starting from "nothing is allowed unless explicitly listed" means adding a dangerous operation (an OPC-UA node write, an MQTT retained-config publish) is always a deliberate, reviewable decision later, never an accidental default today.
+* **Why authorization is checked before backpressure in `CommandDispatcher.dispatch()`.** An unauthorized command must be rejected the same way regardless of how busy the gateway is right now - if capacity were checked first, a disallowed operation could occasionally slip through as "accepted" (a slot happened to be free) or occasionally read as "just busy" (a slot wasn't), leaking timing information about gateway load through what should be a purely authorization-based decision.
+* **Why the default command executor reuses the reachability probes instead of a stub that always succeeds.** `src/probes.ts` already answers "is this child actually there" for real - reusing it means `POST /command` fails honestly (`502 downstream_unreachable`) against a child that's down, rather than reporting `accepted` for a command that could never have gone anywhere.
 
 ---
 
@@ -60,11 +66,19 @@ flowchart LR
 
 ```text
 HYDRA-UMC-GATEWAY-INDUSTRIAL/
-├── src/                # Source code (Node/TypeScript - aggregation surface)
+├── src/
+│   ├── probes.ts        # Real TCP/HTTP reachability checks against each child
+│   ├── command.ts        # Real CommandDispatcher: allowlist + backpressure + timeout
+│   └── server.ts         # Express app: GET /status, POST /command
+├── tests/               # Real vitest suite (probes, server, command)
 ├── docs/               # Documentation and mapping reference
 ├── build/               # Compiled output (npm run build)
 ├── images/             # Media and diagrams
 ├── scripts/            # Utility scripts (bump-version.mjs)
+├── tools/
+│   ├── build_test.py    # Non-versioning build/compile check
+│   └── ci_validate.py   # Manifest/CHANGELOG/docs validation used by CI
+├── build-test.sh/.bat   # Non-versioning build check (no CHANGELOG/version bump)
 ├── Dockerfile           # This service's own container image
 ├── docker-compose.yml   # Brings up this Gateway + its 3 children together
 └── README.md
@@ -124,6 +138,22 @@ npm start
 The server listens on `0.0.0.0:8000` - `GET /status` reports the
 Gateway's own version plus the name/protocol/endpoint of each child
 bridge it fronts.
+
+Real example - an allowlisted command against a child that isn't running,
+an unauthorized operation, and a malformed request:
+
+```bash
+curl -X POST http://localhost:8000/command -H "Content-Type: application/json" \
+  -d '{"protocol":"OPC-UA","operation":"read","target":"ns=2;s=Line1.Status"}'
+# 502 {"status":"downstream_unreachable","reason":"TCP connect to opcua-server:4840 timed out after 2000ms"}
+
+curl -X POST http://localhost:8000/command -H "Content-Type: application/json" \
+  -d '{"protocol":"OPC-UA","operation":"write","target":"ns=2;s=Line1.SetPoint"}'
+# 403 {"status":"rejected_unauthorized","reason":"operation \"write\" is not allowlisted for OPC-UA"}
+
+curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -d '{"protocol":"OPC-UA"}'
+# 400 {"error":"protocol, operation and target are required strings"}
+```
 
 ### Versioning
 Every real `npm run build` bumps `package.json`'s own `version`

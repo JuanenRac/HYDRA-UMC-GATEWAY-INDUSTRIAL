@@ -1,0 +1,176 @@
+// =============================================================================
+// HYDRA-UMC GATEWAY INDUSTRIAL - tests/command.test.ts
+// Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
+// GPL-3.0 - see LICENSE
+//
+// Real unit tests for CommandDispatcher: no HTTP, no network - exercises
+// the allowlist/backpressure/timeout decision layer directly against
+// controllable fake executors.
+// =============================================================================
+
+import { describe, expect, it } from "vitest";
+import { CommandDispatcher, DEFAULT_ALLOWLIST, type CommandRequest } from "../src/command.js";
+
+function req(overrides: Partial<CommandRequest> = {}): CommandRequest {
+  return { protocol: "OPC-UA", operation: "read", target: "ns=2;s=Line1.Status", ...overrides };
+}
+
+describe("CommandDispatcher authorization (default-deny allowlist)", () => {
+  it("accepts an operation that is explicitly allowlisted", async () => {
+    const dispatcher = new CommandDispatcher({ executor: async () => ({ ok: true }) });
+    const outcome = await dispatcher.dispatch(req({ protocol: "OPC-UA", operation: "read" }));
+    expect(outcome.status).toBe("accepted");
+  });
+
+  it("rejects an operation that is not on the allowlist for its protocol", async () => {
+    const dispatcher = new CommandDispatcher({ executor: async () => ({ ok: true }) });
+    const outcome = await dispatcher.dispatch(req({ protocol: "OPC-UA", operation: "write" }));
+    expect(outcome.status).toBe("rejected_unauthorized");
+    if (outcome.status === "rejected_unauthorized") {
+      expect(outcome.reason).toContain("write");
+      expect(outcome.reason).toContain("OPC-UA");
+    }
+  });
+
+  it("rejects an operation that is allowlisted for a DIFFERENT protocol", async () => {
+    // "publish" is allowed for MQTT, not OPC-UA - the allowlist must be
+    // checked per protocol, not as one global set of allowed verbs.
+    const dispatcher = new CommandDispatcher({ executor: async () => ({ ok: true }) });
+    const outcome = await dispatcher.dispatch(req({ protocol: "OPC-UA", operation: "publish" }));
+    expect(outcome.status).toBe("rejected_unauthorized");
+  });
+
+  it("default allowlist never includes a write-like operation for any protocol", () => {
+    // The real safety property: v0 must not silently allow anything that
+    // could alter a live PLC's state.
+    for (const ops of Object.values(DEFAULT_ALLOWLIST)) {
+      expect(ops.has("write")).toBe(false);
+      expect(ops.has("execute")).toBe(false);
+      expect(ops.has("reboot")).toBe(false);
+    }
+  });
+
+  it("unauthorized rejection never invokes the executor", async () => {
+    let called = false;
+    const dispatcher = new CommandDispatcher({
+      executor: async () => {
+        called = true;
+        return { ok: true };
+      },
+    });
+    await dispatcher.dispatch(req({ operation: "not-a-real-operation" }));
+    expect(called).toBe(false);
+  });
+});
+
+describe("CommandDispatcher backpressure", () => {
+  it("rejects a command once maxConcurrent in-flight commands are already running", async () => {
+    let releaseFirst: () => void = () => {};
+    const blocked = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const dispatcher = new CommandDispatcher({
+      maxConcurrent: 1,
+      executor: async () => {
+        await blocked;
+        return { ok: true };
+      },
+    });
+
+    const first = dispatcher.dispatch(req());
+    // Give the first dispatch a tick to actually register as in-flight.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(dispatcher.inFlightCount).toBe(1);
+
+    const second = await dispatcher.dispatch(req());
+    expect(second.status).toBe("rejected_backpressure");
+    if (second.status === "rejected_backpressure") {
+      expect(second.reason).toContain("limit 1");
+    }
+
+    releaseFirst();
+    const firstOutcome = await first;
+    expect(firstOutcome.status).toBe("accepted");
+  });
+
+  it("frees a capacity slot once a command completes, allowing the next one through", async () => {
+    const dispatcher = new CommandDispatcher({ maxConcurrent: 1, executor: async () => ({ ok: true }) });
+    const first = await dispatcher.dispatch(req());
+    expect(first.status).toBe("accepted");
+    expect(dispatcher.inFlightCount).toBe(0);
+
+    const second = await dispatcher.dispatch(req());
+    expect(second.status).toBe("accepted");
+  });
+
+  it("authorization is checked before capacity - an unauthorized command is rejected the same way regardless of load", async () => {
+    let releaseFirst: () => void = () => {};
+    const blocked = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const dispatcher = new CommandDispatcher({
+      maxConcurrent: 1,
+      executor: async () => {
+        await blocked;
+        return { ok: true };
+      },
+    });
+    const first = dispatcher.dispatch(req());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const unauthorized = await dispatcher.dispatch(req({ operation: "write" }));
+    expect(unauthorized.status).toBe("rejected_unauthorized");
+
+    releaseFirst();
+    await first;
+  });
+});
+
+describe("CommandDispatcher timeout", () => {
+  it("reports a timeout when the executor never resolves within the budget", async () => {
+    const dispatcher = new CommandDispatcher({
+      executor: () => new Promise(() => {}), // never resolves
+    });
+    const outcome = await dispatcher.dispatch(req({ timeoutMs: 20 }));
+    expect(outcome.status).toBe("timeout");
+    if (outcome.status === "timeout") {
+      expect(outcome.reason).toContain("20ms");
+    }
+  });
+
+  it("frees its in-flight slot after timing out, not leaving capacity stuck", async () => {
+    const dispatcher = new CommandDispatcher({
+      maxConcurrent: 1,
+      executor: () => new Promise(() => {}),
+    });
+    await dispatcher.dispatch(req({ timeoutMs: 10 }));
+    expect(dispatcher.inFlightCount).toBe(0);
+
+    const next = await dispatcher.dispatch(req({ operation: "read", timeoutMs: 10 }));
+    // The abandoned first executor is still "running" internally but no
+    // longer counted - the dispatcher must not treat that leaked promise
+    // as still occupying a capacity slot.
+    expect(next.status).not.toBe("rejected_backpressure");
+  });
+
+  it("a command that resolves within its timeout is accepted, not timed out", async () => {
+    const dispatcher = new CommandDispatcher({
+      executor: async () => ({ ok: true }),
+    });
+    const outcome = await dispatcher.dispatch(req({ timeoutMs: 1000 }));
+    expect(outcome.status).toBe("accepted");
+  });
+});
+
+describe("CommandDispatcher downstream outcome", () => {
+  it("reports downstream_unreachable when the executor confirms failure", async () => {
+    const dispatcher = new CommandDispatcher({
+      executor: async () => ({ ok: false, detail: "HYDRA-UMC-OPCUA-SERVER is not reachable" }),
+    });
+    const outcome = await dispatcher.dispatch(req());
+    expect(outcome.status).toBe("downstream_unreachable");
+    if (outcome.status === "downstream_unreachable") {
+      expect(outcome.reason).toContain("not reachable");
+    }
+  });
+});

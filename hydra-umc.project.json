@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "ecosystem": "HYDRA-UMC",
   "name": "HYDRA-UMC-GATEWAY-INDUSTRIAL",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "role": "api",
   "stack": "node",
   "technologies": [
@@ -11,11 +11,11 @@
     "real TCP/HTTP reachability probes"
   ],
   "deployment_target": "cm5",
-  "maturity": "functional",
+  "maturity": "established",
   "family": "Industrial Gateway",
   "parent": null,
   "build": "npm install && npm run build.",
-  "notes": "GET /status makes a real, live reachability check against all 3 children on every request - verified end-to-end, including detecting a real killed sibling.",
+  "notes": "Established v0: GET /status makes a real, live reachability check against all 3 children on every request - verified end-to-end, including detecting a real killed sibling. Plus a real command allowlist + backpressure + timeout decision layer (src/command.ts, CommandDispatcher) in front of POST /command: default-deny per-protocol allowlist (only read-like/publish operations allowed in v0), bounded concurrency (no more than maxConcurrent commands in flight, rejected immediately beyond that), and a real timeout - all enforced before any relay attempt, mapped to real HTTP status codes (403/429/504/502). The default executor reuses the existing real reachability probes; an actual protocol-level write is not implemented yet, honestly. 27 tests.",
   "native_version": {
     "file": "package.json",
     "pattern": "\"version\":\\s*\"(\\d+)\\.(\\d+)\\.(\\d+)\""

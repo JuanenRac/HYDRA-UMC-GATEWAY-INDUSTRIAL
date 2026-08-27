@@ -1,7 +1,7 @@
 {
   "name": "hydra-umc-gateway-industrial",
   "private": true,
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
   "description": "Industry 4.0 interoperability bridge - aggregates HYDRA-UMC-OPCUA-SERVER, HYDRA-UMC-MQTT-BROKER and HYDRA-UMC-MTCONNECT-ADAPTER behind a single status/health surface for factory PLCs, SCADA and IIoT platforms.",
   "scripts": {

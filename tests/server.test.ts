@@ -19,6 +19,7 @@ import { createServer as createTcpServer, type Server as TcpServer } from "node:
 import { createServer as createHttpServer, type Server as HttpServer } from "node:http";
 import request from "supertest";
 import { buildApp } from "../src/server.js";
+import { CommandDispatcher } from "../src/command.js";
 
 let opcuaStub: TcpServer;
 let mqttStub: TcpServer;
@@ -102,5 +103,79 @@ describe("HYDRA-UMC-GATEWAY-INDUSTRIAL GET /status (real reachability checks)", 
     expect(opcuaChild.endpoint).toContain("opc.tcp://127.0.0.1:");
     const mtconnectChild = res.body.children.find((c: any) => c.name === "HYDRA-UMC-MTCONNECT-ADAPTER");
     expect(mtconnectChild.endpoint).toBe(process.env.MTCONNECT_URL);
+  });
+});
+
+describe("HYDRA-UMC-GATEWAY-INDUSTRIAL POST /command (real allowlist + backpressure)", () => {
+  it("relays an allowlisted operation against a reachable child (real reachability probe)", async () => {
+    const res = await request(buildApp())
+      .post("/command")
+      .send({ protocol: "OPC-UA", operation: "read", target: "ns=2;s=Line1.Status" });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("accepted");
+  });
+
+  it("rejects a non-allowlisted operation with 403, without ever probing the child", async () => {
+    const res = await request(buildApp())
+      .post("/command")
+      .send({ protocol: "OPC-UA", operation: "write", target: "ns=2;s=Line1.SetPoint" });
+    expect(res.status).toBe(403);
+    expect(res.body.status).toBe("rejected_unauthorized");
+    expect(res.body.reason).toContain("write");
+  });
+
+  it("reports downstream_unreachable (502) for an allowlisted operation against a dead child", async () => {
+    // Close the real OPC-UA stand-in before issuing the command - the
+    // default executor's reachability probe must catch this live, the
+    // same way GET /status does.
+    await new Promise<void>((resolve) => opcuaStub.close(() => resolve()));
+    const res = await request(buildApp())
+      .post("/command")
+      .send({ protocol: "OPC-UA", operation: "read", target: "ns=2;s=Line1.Status" });
+    expect(res.status).toBe(502);
+    expect(res.body.status).toBe("downstream_unreachable");
+  });
+
+  it("rejects a malformed request body with 400", async () => {
+    const res = await request(buildApp()).post("/command").send({ protocol: "OPC-UA" });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 429 for a second concurrent command once a shared dispatcher is at its concurrency limit", async () => {
+    const dispatcher = new CommandDispatcher({
+      maxConcurrent: 1,
+      executor: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return { ok: true };
+      },
+    });
+    const app = buildApp({ commandDispatcher: dispatcher });
+
+    // Fired together via Promise.all rather than sequentially: dispatch()
+    // increments its in-flight counter synchronously before its first
+    // await, so whichever request's handler Node's single-threaded event
+    // loop runs first is guaranteed to claim the one available slot
+    // before the other's capacity check can run - the outcome is
+    // deterministic (exactly one 200, one 429) even though which
+    // request "wins" is not.
+    const [first, second] = await Promise.all([
+      request(app).post("/command").send({ protocol: "OPC-UA", operation: "read", target: "t" }),
+      request(app).post("/command").send({ protocol: "OPC-UA", operation: "read", target: "t" }),
+    ]);
+
+    const statuses = [first.status, second.status].sort();
+    expect(statuses).toEqual([200, 429]);
+    const backpressured = first.status === 429 ? first : second;
+    expect(backpressured.body.status).toBe("rejected_backpressure");
+  });
+
+  it("returns 504 when the injected dispatcher's command exceeds its timeout", async () => {
+    const dispatcher = new CommandDispatcher({ executor: () => new Promise(() => {}) });
+    const app = buildApp({ commandDispatcher: dispatcher });
+    const res = await request(app)
+      .post("/command")
+      .send({ protocol: "OPC-UA", operation: "read", target: "t", timeoutMs: 20 });
+    expect(res.status).toBe(504);
+    expect(res.body.status).toBe("timeout");
   });
 });

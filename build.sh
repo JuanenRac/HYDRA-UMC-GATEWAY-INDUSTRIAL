@@ -4,8 +4,6 @@
 # Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
 # GPL-3.0 - see LICENSE
 # =============================================================================
-python3 "$(dirname "$0")/bump_manifest_version.py" || exit 1
-
 echo "========================================"
 echo " HYDRA-UMC GATEWAY INDUSTRIAL"
 echo " Build and Compile Script - installs dependencies and compiles the app"
@@ -34,7 +32,12 @@ fi
 echo "========================================"
 echo " Compiling HYDRA-UMC GATEWAY INDUSTRIAL (Prod Mode) "
 echo "========================================"
+# npm run build bumps package.json's own native version FIRST (see
+# scripts/bump-version.mjs), then bundles - so the manifest sync below
+# runs AFTER, with --sync, accepting that one real native bump rather
+# than bumping the native version a second time itself.
 if npm run build; then
+  python3 "$(dirname "$0")/bump_manifest_version.py" --sync || exit 1
   echo ""
   echo "Build complete! You can now start the production server with:"
   echo "npm start"

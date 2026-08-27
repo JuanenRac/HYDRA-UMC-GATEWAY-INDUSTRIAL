@@ -28,6 +28,9 @@ Actúa como un traductor multi-protocolo, exponiendo los estados robóticos inte
 * 🛡️ **Seguridad Industrial:** TLS mutuo (mTLS) y autenticación basada en certificados para todas las conexiones de fábrica.
 * 🔄 **Mapeo de Estado:** Traducción en tiempo real del estado JSON interno de Hydra en espacios de direcciones industriales estandarizados.
 * ⚡ **Alta Fiabilidad:** Puente ligero dedicado optimizado para un tiempo de actividad industrial 24/7.
+* 🚦 **Real v0 - Allowlist de Comandos + Backpressure:** `POST /command` está protegido por una allowlist por defecto-denegado por protocolo, un límite de concurrencia acotado y un timeout real - ver "Comprobación de honestidad" abajo para lo que se aplica exactamente hoy.
+
+**Comprobación de honestidad - qué funciona hoy de verdad:** `POST /command { protocol, operation, target }` es real: la operación debe estar explícitamente en la allowlist de su protocolo (`403` si no lo está - v0 solo permite operaciones de lectura/publicación, nada que escriba en un PLC en vivo), no se ejecuta más de un número acotado de comandos a la vez (`429` por encima de eso), y un comando que no se resuelve a tiempo se reporta como agotado (`504`) en vez de dejarse colgado. La ruta de ejecución por defecto reutiliza las sondas de alcanzabilidad reales de este proyecto - honesto en que se queda corto de una escritura real a nivel de protocolo OPC-UA/MQTT/MTConnect, ya que ninguno de los tres hijos expone todavía una API de comandos real tampoco. Ver `CHANGELOG.md` para lo entregado exactamente.
 
 ---
 
@@ -53,6 +56,9 @@ flowchart LR
 * **Por qué el punto de entrada solo imprime identidad/versión, y termina tras levantar un listener de health-check.** Etapa de andamiaje: probar que el proceso arranca y se mantiene en pie (no solo se ejecuta y termina, a diferencia de la mayoría de los otros esqueletos Node de este ecosistema) precede a la lógica real de traducción de protocolo, ya que una pasarela real es por naturaleza un servicio de larga duración.
 * **Cómo encaja en el resto del ecosistema.** El padre de integración de la familia Industrial Gateway - expone el propio estado de HYDRA-UMC-SERVER a sistemas de planta (MES/SCADA/históricos) que hablan OPC-UA, MQTT o MTConnect en vez de la API REST/WebSocket propia de este ecosistema.
 * **`GET /status` hace una comprobación real y en vivo en cada petición.** `src/probes.ts` realiza una conexión TCP real para OPC-UA/MQTT y una petición HTTP `GET` real para MTConnect contra cada hijo - `reachable`/`latencyMs`/`error` por hijo y un `allReachable` agregado se calculan en el momento de la petición, no se devuelven de una lista estática o en caché. Verificado de extremo a extremo: se arrancaron los 3 hijos reales, `/status` los reportó a todos alcanzables, se mató de verdad uno de ellos, y la siguiente llamada a `/status` marcó correctamente solo a ese hijo como no alcanzable con un `ECONNREFUSED` real. El host/puerto/URL de cada hijo es configurable por variables de entorno, con el mismo nombre de servicio que ya usa `docker-compose.yml` como valor por defecto.
+* **Por qué la allowlist de `POST /command` es por defecto-denegado, no por defecto-permitido.** Una pasarela industrial que reenvía cualquier string de operación que reciba es un riesgo en el momento en que un hijo exponga una ruta de escritura real - empezar desde "nada está permitido a menos que se liste explícitamente" significa que añadir una operación peligrosa (una escritura de nodo OPC-UA, una publicación de configuración retenida en MQTT) siempre es una decisión deliberada y revisable más adelante, nunca un valor por defecto accidental hoy.
+* **Por qué la autorización se comprueba antes que el backpressure en `CommandDispatcher.dispatch()`.** Un comando no autorizado debe rechazarse siempre de la misma forma sin importar cuán ocupada esté la pasarela en ese momento - si la capacidad se comprobara primero, una operación no permitida podría a veces colarse como "aceptada" (un hueco estaba libre) o a veces leerse como "solo ocupado" (no lo estaba), filtrando información de temporización sobre la carga de la pasarela a través de lo que debería ser una decisión puramente de autorización.
+* **Por qué el ejecutor de comandos por defecto reutiliza las sondas de alcanzabilidad en vez de un stub que siempre tiene éxito.** `src/probes.ts` ya responde de verdad a "¿este hijo está de verdad ahí?" - reutilizarlo significa que `POST /command` falla honestamente (`502 downstream_unreachable`) contra un hijo caído, en vez de reportar `accepted` para un comando que nunca podría haber llegado a ningún sitio.
 
 ---
 
@@ -60,11 +66,19 @@ flowchart LR
 
 ```text
 HYDRA-UMC-GATEWAY-INDUSTRIAL/
-├── src/                # Código fuente (Node/TypeScript - superficie de agregación)
+├── src/
+│   ├── probes.ts        # Comprobaciones reales de alcanzabilidad TCP/HTTP por hijo
+│   ├── command.ts        # CommandDispatcher real: allowlist + backpressure + timeout
+│   └── server.ts         # App Express: GET /status, POST /command
+├── tests/               # Suite vitest real (probes, server, command)
 ├── docs/               # Documentación y referencia de mapeo
 ├── build/               # Salida compilada (npm run build)
 ├── images/             # Medios y diagramas
 ├── scripts/            # Scripts de utilidad (bump-version.mjs)
+├── tools/
+│   ├── build_test.py    # Comprobación de compilación sin versionado
+│   └── ci_validate.py   # Validación de manifiesto/CHANGELOG/docs usada por CI
+├── build-test.sh/.bat   # Comprobación de compilación sin versionado
 ├── Dockerfile           # Imagen de contenedor propia de este servicio
 ├── docker-compose.yml   # Levanta este Gateway + sus 3 hijos juntos
 └── README.md
@@ -124,6 +138,22 @@ npm start
 El servidor escucha en `0.0.0.0:8000` - `GET /status` reporta la versión
 propia del Gateway más el nombre/protocolo/endpoint de cada puente hijo
 al que da la cara.
+
+Ejemplo real - un comando permitido contra un hijo que no está corriendo,
+una operación no autorizada y una petición malformada:
+
+```bash
+curl -X POST http://localhost:8000/command -H "Content-Type: application/json" \
+  -d '{"protocol":"OPC-UA","operation":"read","target":"ns=2;s=Line1.Status"}'
+# 502 {"status":"downstream_unreachable","reason":"TCP connect to opcua-server:4840 timed out after 2000ms"}
+
+curl -X POST http://localhost:8000/command -H "Content-Type: application/json" \
+  -d '{"protocol":"OPC-UA","operation":"write","target":"ns=2;s=Line1.SetPoint"}'
+# 403 {"status":"rejected_unauthorized","reason":"operation \"write\" is not allowlisted for OPC-UA"}
+
+curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -d '{"protocol":"OPC-UA"}'
+# 400 {"error":"protocol, operation and target are required strings"}
+```
 
 ### Versionado
 Cada `npm run build` real incrementa automáticamente el `version` de

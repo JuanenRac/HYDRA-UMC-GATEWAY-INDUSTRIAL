@@ -34,6 +34,9 @@ MTConnect の XML ストリームとして公開し、Hydra スウォームが�
 * 🛡️ **産業用セキュリティ：** すべての工場接続に対する相互 TLS（mTLS）と証明書ベースの認証。
 * 🔄 **状態マッピング：** Hydra 内部の JSON 状態を標準化された産業用アドレス空間へリアルタイムに変換。
 * ⚡ **高信頼性：** 24 時間 365 日の産業用稼働に最適化された専用の軽量ブリッジ。
+* 🚦 **実装済み v0 —— コマンドアローリスト + バックプレッシャー：** `POST /command` は、プロトコルごとのデフォルト拒否アローリスト、上限付きの同時実行制限、実際のタイムアウトによって保護されています——今日実際に強制されている内容の詳細は下記「正直な現状確認」を参照してください。
+
+**正直な現状確認 —— 今日実際に動くもの：** `POST /command { protocol, operation, target }` は実際に動作します——操作はそのプロトコルのアローリストに明示的に登録されている必要があり（そうでなければ `403`——v0 では読み取り/publish 系の操作のみを許可し、稼働中の PLC の状態を変更しうる操作は許可されていません）、上限を超える数のコマンドが同時に実行されることはなく（超えると `429`）、時間内に完了しなかったコマンドは無期限に保留されるのではなくタイムアウトとして報告されます（`504`）。デフォルトの実行経路は本プロジェクト自身の実際の到達可能性プローブを再利用しています——3 つの子サービスのいずれもまだ実際のコマンド API を公開していないため、実際のプロトコルレベルの書き込みにはまだ至っていないことを正直に示しています。実際に出荷済みの内容は `CHANGELOG.md` を参照してください。
 
 ---
 
@@ -59,6 +62,9 @@ flowchart LR
 * **エントリポイントが今日は身元/バージョンのみを表示し、ヘルスチェックリスナーが起動した後で終了しない理由。** 足場（アンダミアヘ、スキャフォールディング）段階にあります：このプロセスが起動し稼働し続けることを証明すること（このエコシステムの他の多くの Node スケルトンとは異なり、単に実行して終了するだけではないこと）が、実際のプロトコル変換ロジックに先立ちます。実際のゲートウェイは、その性質上、長時間稼働するサービスだからです。
 * **エコシステムの他の部分との関係。** Industrial Gateway ファミリーの統合親プロジェクトです——HYDRA-UMC-SERVER 自身の状態を、このエコシステム自身の REST/WebSocket API ではなく OPC-UA、MQTT、MTConnect を話す工場フロアのシステム（MES/SCADA/ヒストリアン）に公開します。
 * **`GET /status` はリクエストごとに実際のライブチェックを行います。** `src/probes.ts` は各子サービスに対して OPC-UA/MQTT には実際の TCP 接続を、MTConnect には実際の HTTP `GET` リクエストを行います——各子サービスの `reachable`/`latencyMs`/`error`、および集計された `allReachable` はリクエスト時点で計算され、静的またはキャッシュされたリストから返されるものではありません。エンドツーエンドで検証済み: 3 つの実際の子サービスをすべて起動したところ `/status` は全て到達可能と報告し、その後 1 つを実際に停止させたところ、次の `/status` 呼び出しはその子サービスのみを正しく到達不能と判定し、実際の `ECONNREFUSED` エラーを返しました。各子サービスのホスト/ポート/URL は環境変数で設定可能で、デフォルトは `docker-compose.yml` が既に使用しているサービス名と同じです。
+* **`POST /command` のアローリストがデフォルト許可ではなくデフォルト拒否である理由。** 受け取った任意の操作文字列を転送する産業用ゲートウェイは、子サービスが実際の書き込みパスを公開した瞬間にリスクとなります——「明示的にリストされていない限り何も許可しない」から始めることで、危険な操作（OPC-UA ノードの書き込み、MQTT の retained 設定の publish）を追加することは、常に後で意図的にレビュー可能な決定となり、今日の偶発的なデフォルトには決してなりません。
+* **`CommandDispatcher.dispatch()` において、認可がバックプレッシャーより先にチェックされる理由。** 認可されていないコマンドは、ゲートウェイが現在どれだけ忙しいかに関わらず、常に同じ方法で拒否されなければなりません——もし容量を先にチェックしていたら、許可されていない操作が、たまたま枠が空いていたために「accepted」としてすり抜けたり、たまたま空いていなかったために「単に忙しいだけ」として読み取られたりすることがあり、本来純粋に認可のみに基づくべき判断を通じてゲートウェイの負荷に関するタイミング情報が漏れてしまいます。
+* **デフォルトのコマンド実行器が、常に成功するスタブではなく到達可能性プローブを再利用する理由。** `src/probes.ts` はすでに「この子サービスは実際にそこにあるか」という問いに実際に答えています——それを再利用することで、`POST /command` は停止している子サービスに対して正直に失敗し（`502 downstream_unreachable`）、決して到達しえなかったコマンドに対して `accepted` を報告することがなくなります。
 
 ---
 
@@ -66,11 +72,19 @@ flowchart LR
 
 ```text
 HYDRA-UMC-GATEWAY-INDUSTRIAL/
-├── src/                # ソースコード（Node/TypeScript —— 集約インターフェース）
+├── src/
+│   ├── probes.ts        # 各子サービスに対する実際の TCP/HTTP 到達可能性チェック
+│   ├── command.ts        # 実際の CommandDispatcher：アローリスト + バックプレッシャー + タイムアウト
+│   └── server.ts         # Express アプリ：GET /status、POST /command
+├── tests/               # 実際の vitest スイート（probes、server、command）
 ├── docs/               # ドキュメントとマッピングリファレンス
 ├── build/               # コンパイル出力（npm run build）
 ├── images/             # メディアと図表
 ├── scripts/            # ユーティリティスクリプト（bump-version.mjs）
+├── tools/
+│   ├── build_test.py    # バージョンを増やさないビルドチェック
+│   └── ci_validate.py   # CI が使用するマニフェスト/CHANGELOG/ドキュメント検証
+├── build-test.sh/.bat   # バージョンを増やさないビルドチェック
 ├── Dockerfile           # 本サービス自身のコンテナイメージ
 ├── docker-compose.yml   # 本ゲートウェイとその 3 つの子プロジェクトを一緒に起動
 └── README.md
@@ -134,6 +148,22 @@ npm start
 サーバーは `0.0.0.0:8000` でリッスンします——`GET /status` は、本ゲート
 ウェイ自身のバージョンと、それがフロントに立っている各子ブリッジの
 名前/プロトコル/エンドポイントを報告します。
+
+実際の例 —— 稼働していない子サービスに対するアローリスト内のコマンド、
+認可されていない操作、および不正な形式のリクエスト：
+
+```bash
+curl -X POST http://localhost:8000/command -H "Content-Type: application/json" \
+  -d '{"protocol":"OPC-UA","operation":"read","target":"ns=2;s=Line1.Status"}'
+# 502 {"status":"downstream_unreachable","reason":"TCP connect to opcua-server:4840 timed out after 2000ms"}
+
+curl -X POST http://localhost:8000/command -H "Content-Type: application/json" \
+  -d '{"protocol":"OPC-UA","operation":"write","target":"ns=2;s=Line1.SetPoint"}'
+# 403 {"status":"rejected_unauthorized","reason":"operation \"write\" is not allowlisted for OPC-UA"}
+
+curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -d '{"protocol":"OPC-UA"}'
+# 400 {"error":"protocol, operation and target are required strings"}
+```
 
 ### バージョン管理
 実際の `npm run build` のたびに、`package.json` 自身の `version` が

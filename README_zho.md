@@ -32,6 +32,9 @@ IIoT 平台进行交互。
 * 🛡️ **工业级安全：** 所有工厂连接均采用双向 TLS（mTLS）和基于证书的身份验证。
 * 🔄 **状态映射：** 将 Hydra 内部的 JSON 状态实时转换为标准化的工业地址空间。
 * ⚡ **高可靠性：** 专为 24/7 工业级正常运行时间优化的轻量级专用桥接。
+* 🚦 **真实 v0 —— 命令白名单 + 背压：** `POST /command` 受到按协议默认拒绝的白名单、有上限的并发限制以及真实超时的保护——具体今天实际强制执行的内容见下方「诚实说明」。
+
+**诚实说明——今天实际运行的内容：** `POST /command { protocol, operation, target }` 是真实的：该操作必须已明确列入其协议的白名单（否则返回 `403`——v0 只允许读取/发布类操作，不允许任何会写入正在运行的 PLC 的操作），同时运行的命令数量不超过一个上限（超出则返回 `429`），未在规定时间内完成的命令会被报告为超时（`504`）而不是被无限期挂起。默认的执行路径复用了本项目自身真实的可达性探测——诚实地说明它还没有执行真正的 OPC-UA/MQTT/MTConnect 协议层写操作，因为这三个子服务目前也都还没有暴露真正的命令 API。具体已交付内容请参见 `CHANGELOG.md`。
 
 ---
 
@@ -57,6 +60,9 @@ flowchart LR
 * **为何入口点今天只打印身份/版本，在健康检查监听器启动后才退出。** 处于脚手架（scaffolding）阶段：证明该进程能够启动并保持运行（而非像该生态系统中大多数其他 Node 骨架那样只是运行后退出），先于真正的协议转换逻辑，因为一个真正的网关本质上是一项长期运行的服务。
 * **这如何融入生态系统的其余部分。** 作为 Industrial Gateway 系列的集成父项目——将 HYDRA-UMC-SERVER 自身的状态暴露给使用 OPC-UA、MQTT 或 MTConnect 而非本生态系统自身 REST/WebSocket API 的车间系统（MES/SCADA/历史数据库）。
 * **`GET /status` 在每次请求时都会执行真实的实时检查。** `src/probes.ts` 对每个子服务执行真实的 TCP 连接（OPC-UA/MQTT）或真实的 HTTP `GET` 请求（MTConnect）——每个子服务的 `reachable`/`latencyMs`/`error` 以及汇总的 `allReachable` 都是在请求发生时实时计算的，而不是从静态或缓存的列表返回。已完成端到端验证：启动全部 3 个真实子服务后，`/status` 报告全部可达；随后真正终止其中一个，下一次 `/status` 调用正确地仅将该子服务标记为不可达，并返回真实的 `ECONNREFUSED` 错误。每个子服务的主机/端口/URL 均可通过环境变量配置，默认值与 `docker-compose.yml` 已使用的服务名相同。
+* **为何 `POST /command` 的白名单是默认拒绝而非默认允许。** 一个会转发任意操作字符串的工业网关，一旦某个子服务暴露出真正的写入路径，就会成为一个隐患——从「除非明确列出，否则一律不允许」出发，意味着添加一个危险操作（一次 OPC-UA 节点写入、一次 MQTT 保留配置发布）永远是日后一个经过深思熟虑、可审查的决定，而不是今天一个意外的默认行为。
+* **为何 `CommandDispatcher.dispatch()` 中授权检查先于背压检查。** 无论网关当前有多忙，一个未经授权的命令都必须以同样的方式被拒绝——如果先检查容量，一个不被允许的操作有时可能因为恰好有空闲槽位而「意外通过」（accepted），有时又可能因为槽位已满而被读作「只是太忙」，从而通过一个本应纯粹基于授权的决策泄露出网关负载的时序信息。
+* **为何默认命令执行器复用可达性探测，而不是一个永远成功的桩实现。** `src/probes.ts` 已经能真实回答「这个子服务是否真的在那里」——复用它意味着 `POST /command` 面对一个已经下线的子服务时会诚实地失败（`502 downstream_unreachable`），而不是对一个根本不可能送达任何地方的命令报告 `accepted`。
 
 ---
 
@@ -64,11 +70,19 @@ flowchart LR
 
 ```text
 HYDRA-UMC-GATEWAY-INDUSTRIAL/
-├── src/                # 源代码（Node/TypeScript —— 聚合接口）
+├── src/
+│   ├── probes.ts        # 每个子服务的真实 TCP/HTTP 可达性检查
+│   ├── command.ts        # 真实的 CommandDispatcher：白名单 + 背压 + 超时
+│   └── server.ts         # Express 应用：GET /status、POST /command
+├── tests/               # 真实的 vitest 套件（probes、server、command）
 ├── docs/               # 文档与映射参考
 ├── build/               # 编译输出（npm run build）
 ├── images/             # 媒体与图表
 ├── scripts/            # 实用脚本（bump-version.mjs）
+├── tools/
+│   ├── build_test.py    # 不递增版本号的构建检查
+│   └── ci_validate.py   # CI 使用的清单/CHANGELOG/文档校验
+├── build-test.sh/.bat   # 不递增版本号的构建检查
 ├── Dockerfile           # 本服务自身的容器镜像
 ├── docker-compose.yml   # 将本网关及其 3 个子项目一同启动
 └── README.md
@@ -126,6 +140,22 @@ npm start
 
 服务器监听 `0.0.0.0:8000`——`GET /status` 会报告本网关自身的版本，
 以及它所对接的每个子桥接服务的名称/协议/端点。
+
+真实示例——对一个未运行的子服务发出一个白名单内的命令、一个未经
+授权的操作，以及一个格式错误的请求：
+
+```bash
+curl -X POST http://localhost:8000/command -H "Content-Type: application/json" \
+  -d '{"protocol":"OPC-UA","operation":"read","target":"ns=2;s=Line1.Status"}'
+# 502 {"status":"downstream_unreachable","reason":"TCP connect to opcua-server:4840 timed out after 2000ms"}
+
+curl -X POST http://localhost:8000/command -H "Content-Type: application/json" \
+  -d '{"protocol":"OPC-UA","operation":"write","target":"ns=2;s=Line1.SetPoint"}'
+# 403 {"status":"rejected_unauthorized","reason":"operation \"write\" is not allowlisted for OPC-UA"}
+
+curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -d '{"protocol":"OPC-UA"}'
+# 400 {"error":"protocol, operation and target are required strings"}
+```
 
 ### 版本管理
 每次真实的 `npm run build` 都会自动递增 `package.json` 自身的
