@@ -15,8 +15,7 @@
 // HTTP GET for MTConnect - see src/probes.ts) so "is the plant floor
 // actually connected to OPC-UA/MQTT/MTConnect right now" has one real
 // answer instead of three, verified against real running services (not a
-// static list) - see tests/server.test.ts and the real end-to-end smoke
-// test recorded in SONNET/HYDRA-UMC-GATEWAY-INDUSTRIAL/auditoria_historial.txt.
+// static list) - see tests/server.test.ts and the end-to-end smoke test.
 //
 // Host/port defaults match docker-compose.yml's own service names
 // (opcua-server, mqtt-broker, mtconnect-adapter) so `docker compose up`

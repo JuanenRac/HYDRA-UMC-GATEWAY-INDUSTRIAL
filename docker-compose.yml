@@ -14,8 +14,8 @@
 #
 # Layout assumption: the four HYDRA-UMC-GATEWAY-INDUSTRIAL/OPCUA-SERVER/
 # MQTT-BROKER/MTCONNECT-ADAPTER repos are checked out as sibling folders
-# (exactly how this ecosystem's GitHub org lays them out today - see
-# SONNET/PROJECT_INDEX.txt) - the three `context: ../...` paths below
+# (the ecosystem's documented sibling-repository layout) - the three
+# `context: ../...` paths below
 # depend on that layout, not on any monorepo restructuring.
 #
 # Every service already prints its own name/version/role/port to stdout
