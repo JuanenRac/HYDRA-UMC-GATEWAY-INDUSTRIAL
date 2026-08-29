@@ -148,6 +148,7 @@ export function buildApp(options: BuildAppOptions = {}) {
     rejected_backpressure: 429,
     timeout: 504,
     downstream_unreachable: 502,
+    executor_error: 500,
   };
 
   app.post("/command", async (req, res) => {

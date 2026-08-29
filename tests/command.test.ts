@@ -162,6 +162,59 @@ describe("CommandDispatcher timeout", () => {
   });
 });
 
+describe("CommandDispatcher executor rejection", () => {
+  it("surfaces a rejecting executor as a real error, not a masked timeout", async () => {
+    const dispatcher = new CommandDispatcher({
+      executor: async () => {
+        throw new Error("simulated protocol-level write failure");
+      },
+    });
+    const outcome = await dispatcher.dispatch(req({ timeoutMs: 1000 }));
+    expect(outcome.status).toBe("executor_error");
+    expect(outcome.status).not.toBe("timeout");
+    if (outcome.status === "executor_error") {
+      expect(outcome.reason).toContain("simulated protocol-level write failure");
+    }
+  });
+
+  it("a rejecting executor does not produce an unhandled promise rejection", async () => {
+    // Real regression coverage for the withTimeout() bug: the wrapping
+    // promise used to have no reject path, so a throwing executor's
+    // rejection was left unhandled - which crashes the process by
+    // default under modern Node. Install a real listener and assert it
+    // never fires, rather than trusting that no crash means no bug.
+    const unhandled: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", onUnhandledRejection);
+    try {
+      const dispatcher = new CommandDispatcher({
+        executor: async () => {
+          throw new Error("simulated protocol-level write failure");
+        },
+      });
+      const outcome = await dispatcher.dispatch(req({ timeoutMs: 1000 }));
+      expect(outcome.status).toBe("executor_error");
+      // Give any lingering unhandled rejection a real chance to surface
+      // before asserting none did.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandledRejection);
+    }
+  });
+
+  it("still frees its in-flight slot after the executor rejects", async () => {
+    const dispatcher = new CommandDispatcher({
+      maxConcurrent: 1,
+      executor: async () => {
+        throw new Error("simulated failure");
+      },
+    });
+    await dispatcher.dispatch(req());
+    expect(dispatcher.inFlightCount).toBe(0);
+  });
+});
+
 describe("CommandDispatcher downstream outcome", () => {
   it("reports downstream_unreachable when the executor confirms failure", async () => {
     const dispatcher = new CommandDispatcher({

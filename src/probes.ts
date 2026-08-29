@@ -4,8 +4,8 @@
 // GPL-3.0 - see LICENSE
 //
 // Real network checks against each protocol bridge, replacing the static
-// CHILDREN list this project's GET /status used to return unconditionally
-// (see mejoras_futuras.txt for the prior state). Two check kinds, chosen
+// CHILDREN list this project's GET /status used to return unconditionally,
+// regardless of whether any child was actually up. Two check kinds, chosen
 // per protocol's own transport:
 //   - probeTcp(): a real TCP connect for OPC-UA and MQTT - both are raw
 //     TCP protocols; a successful connect proves the child's listener is
@@ -18,9 +18,8 @@
 //     is a stronger, application-level signal than a bare TCP connect
 //     would be.
 // Neither performs a full protocol handshake (an actual OPC-UA Hello or
-// MQTT CONNECT) - that's real scope left for later (see
-// mejoras_futuras.txt), documented here rather than silently implied by
-// the word "reachable".
+// MQTT CONNECT) - that's real scope left for later, documented here
+// rather than silently implied by the word "reachable".
 // =============================================================================
 
 import { Socket } from "node:net";
