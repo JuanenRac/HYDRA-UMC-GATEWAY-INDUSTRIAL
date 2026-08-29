@@ -30,6 +30,13 @@ semantic-versioning judgment calls:
   (`tests/server.test.ts`, `tests/probes.test.ts` - 9/9 passing).
   Documentation-only - no code changed, no version bump.
 
+## [0.0.5] - Real ecosystem live-status opt-in
+
+- **`hydra-umc.project.json`** declares its real `service.port` (8000)
+  and `health_path` (`/status`) - HYDRA-UMC-SERVER's ecosystem status
+  endpoint now does a real HTTP GET against it (expecting 2xx) instead
+  of only reporting static manifest metadata.
+
 ## [0.0.4] - Ecosystem bug audit: masked-timeout fix and a dangling private-file reference
 
 - **`src/command.ts`** - fixed `withTimeout()`: the `promise.then((value) => {...})` chain had no rejection handler and the wrapping `new Promise((resolve) => {...})` never called `reject`, so an executor that throws/rejects instead of resolving would hang silently until `timeoutMs` elapsed (masking a real executor error as `status: "timeout"`) and would also leave an unhandled promise rejection - which crashes the process by default under modern Node. `withTimeout()` now uses `promise.then(onResolve, onReject)` so whichever of the executor or the timer settles first resolves/rejects the returned promise, and the other becomes a no-op rather than firing late. `CommandDispatcher.dispatch()` now catches a rejecting executor and reports it as a new `"executor_error"` outcome (mapped to HTTP `500` in `server.ts`) instead of letting the exception propagate. The current default executor (`probeTcp`/`probeHttp`-backed, see `probes.ts`) never actually rejects today, so this was latent - but it is exactly the failure mode a future real protocol-level write executor would hit.
