@@ -138,19 +138,47 @@ describe("CommandDispatcher timeout", () => {
     }
   });
 
-  it("frees its in-flight slot after timing out, not leaving capacity stuck", async () => {
+  it("keeps capacity reserved after a timeout until the real executor settles", async () => {
+    let release: () => void = () => {};
+    const blocked = new Promise<{ ok: boolean }>((resolve) => {
+      release = () => resolve({ ok: true });
+    });
     const dispatcher = new CommandDispatcher({
       maxConcurrent: 1,
-      executor: () => new Promise(() => {}),
+      executor: () => blocked,
     });
     await dispatcher.dispatch(req({ timeoutMs: 10 }));
-    expect(dispatcher.inFlightCount).toBe(0);
+    expect(dispatcher.inFlightCount).toBe(1);
 
     const next = await dispatcher.dispatch(req({ operation: "read", timeoutMs: 10 }));
-    // The abandoned first executor is still "running" internally but no
-    // longer counted - the dispatcher must not treat that leaked promise
-    // as still occupying a capacity slot.
-    expect(next.status).not.toBe("rejected_backpressure");
+    expect(next.status).toBe("rejected_backpressure");
+
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(dispatcher.inFlightCount).toBe(0);
+
+    const afterSettlement = await dispatcher.dispatch(req({ timeoutMs: 100 }));
+    expect(afterSettlement.status).toBe("accepted");
+  });
+
+  it("observes a late executor rejection after a response timeout", async () => {
+    let reject: (reason?: unknown) => void = () => {};
+    const blocked = new Promise<{ ok: boolean }>((_resolve, rejectPromise) => {
+      reject = rejectPromise;
+    });
+    const unhandled: unknown[] = [];
+    const listener = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", listener);
+    try {
+      const dispatcher = new CommandDispatcher({ maxConcurrent: 1, executor: () => blocked });
+      expect((await dispatcher.dispatch(req({ timeoutMs: 10 }))).status).toBe("timeout");
+      reject(new Error("late downstream failure"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(dispatcher.inFlightCount).toBe(0);
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", listener);
+    }
   });
 
   it("a command that resolves within its timeout is accepted, not timed out", async () => {

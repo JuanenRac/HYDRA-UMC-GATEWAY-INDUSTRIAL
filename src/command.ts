@@ -21,6 +21,10 @@
 //     against a slow or stuck downstream.
 //   - Timeout: a command whose executor doesn't resolve within its
 //     budget is reported as timed out rather than left hanging forever.
+//     Crucially, that *response* timeout does not pretend the underlying
+//     executor stopped: its capacity slot remains held until it really
+//     settles, preventing an uncooperative downstream from bypassing
+//     backpressure by accumulating abandoned work.
 //     A rejecting executor is a distinct, real failure mode: withTimeout()
 //     settles the returned promise correctly whichever of the executor or
 //     the timer finishes first, so an executor that throws is reported as
@@ -143,12 +147,18 @@ export class CommandDispatcher {
     }
 
     this.inFlight++;
+    let releaseAfterExecutorSettles = false;
     const startedAt = Date.now();
+    // Capture this exact execution promise once. If the response budget
+    // expires first, the executor may still own a real downstream socket or
+    // protocol request. Its eventual rejection is observed below so it never
+    // becomes an unhandled rejection, and its capacity is released only then.
+    const execution = Promise.resolve().then(() => this.executor(req));
     try {
       const timeoutMs = req.timeoutMs ?? this.defaultTimeoutMs;
       let result: { ok: boolean; detail?: string } | typeof TIMEOUT_MARKER;
       try {
-        result = await withTimeout(this.executor(req), timeoutMs);
+        result = await withTimeout(execution, timeoutMs);
       } catch (err) {
         // A rejecting/throwing executor is a real error, not a network
         // timeout - reporting it as "timeout" would mask the executor's
@@ -159,6 +169,15 @@ export class CommandDispatcher {
         return { status: "executor_error", reason: `executor threw: ${message}` };
       }
       if (result === TIMEOUT_MARKER) {
+        releaseAfterExecutorSettles = true;
+        void execution.then(
+          () => {
+            this.inFlight--;
+          },
+          () => {
+            this.inFlight--;
+          },
+        );
         return { status: "timeout", reason: `command timed out after ${timeoutMs}ms` };
       }
       if (!result.ok) {
@@ -169,7 +188,9 @@ export class CommandDispatcher {
       }
       return { status: "accepted", latencyMs: Date.now() - startedAt };
     } finally {
-      this.inFlight--;
+      if (!releaseAfterExecutorSettles) {
+        this.inFlight--;
+      }
     }
   }
 }

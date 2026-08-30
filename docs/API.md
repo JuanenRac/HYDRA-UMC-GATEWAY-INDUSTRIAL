@@ -70,3 +70,20 @@ Runs a **real network probe** against each child on every request - a TCP connec
 | `OPCUA_HOST` / `OPCUA_PORT` | `opcua-server` / `4840` | OPC-UA TCP probe target. |
 | `MQTT_HOST` / `MQTT_PORT` | `mqtt-broker` / `1883` | MQTT TCP probe target. |
 | `MTCONNECT_URL` | `http://mtconnect-adapter:5000/probe` | MTConnect HTTP probe target. |
+
+---
+
+## `POST /command`
+
+The v0 command surface is deliberately read-oriented: only explicitly
+allowlisted operations are accepted (`read` for OPC-UA/MTConnect and `publish`
+for MQTT). It rejects other operations with `403`, applies bounded shared
+concurrency (`429`), and returns `504` when an executor exceeds its request
+budget. A `504` means the caller's response budget expired; it does **not**
+claim that a downstream operation was cancelled. The dispatcher keeps that
+capacity slot reserved until the underlying executor actually settles, so a
+slow or stuck child cannot repeatedly time out and bypass backpressure.
+
+No protocol-level write is implemented yet. The default executor makes the
+same real reachability probe used by `GET /status`; it reports `200` only when
+the allowlisted target child is reachable and otherwise returns `502`.

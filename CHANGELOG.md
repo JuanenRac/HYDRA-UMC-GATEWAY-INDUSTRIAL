@@ -1,9 +1,8 @@
 # Changelog
 
-All notable work on **HYDRA-UMC-GATEWAY-INDUSTRIAL** is summarized here, newest first. Full
-session-by-session detail (including dates) lives in a private,
-unpublished internal log - this file is public, so it intentionally
-omits calendar dates.
+All notable public work on **HYDRA-UMC-GATEWAY-INDUSTRIAL** is summarized
+here, newest first. This changelog intentionally omits calendar dates and
+internal work-session detail.
 
 ## Versioning scheme
 
@@ -20,6 +19,16 @@ semantic-versioning judgment calls:
 - the same carry cascades into `MAJOR` if `MINOR` would exceed 9
 
 ---
+
+## [Unreleased]
+
+- **Timeout-safe backpressure:** a `POST /command` timeout now ends only the
+  caller's response budget. Its in-flight capacity stays reserved until the
+  real executor settles, so an uncooperative downstream cannot create
+  unbounded abandoned work by repeatedly timing out. Late executor failures
+  are observed and cannot become unhandled promise rejections.
+- **API contract clarification:** `docs/API.md` now documents the exact
+  `504` boundary and the intentionally read-oriented v0 command surface.
 
 ## Documentation - Real HTTP API reference
 
@@ -52,7 +61,8 @@ semantic-versioning judgment calls:
 
 - **`src/command.ts`** - fixed `withTimeout()`: the `promise.then((value) => {...})` chain had no rejection handler and the wrapping `new Promise((resolve) => {...})` never called `reject`, so an executor that throws/rejects instead of resolving would hang silently until `timeoutMs` elapsed (masking a real executor error as `status: "timeout"`) and would also leave an unhandled promise rejection - which crashes the process by default under modern Node. `withTimeout()` now uses `promise.then(onResolve, onReject)` so whichever of the executor or the timer settles first resolves/rejects the returned promise, and the other becomes a no-op rather than firing late. `CommandDispatcher.dispatch()` now catches a rejecting executor and reports it as a new `"executor_error"` outcome (mapped to HTTP `500` in `server.ts`) instead of letting the exception propagate. The current default executor (`probeTcp`/`probeHttp`-backed, see `probes.ts`) never actually rejects today, so this was latent - but it is exactly the failure mode a future real protocol-level write executor would hit.
 - **3 new tests** (`tests/command.test.ts`) using a deliberately-throwing executor: asserts the outcome is `"executor_error"` (never `"timeout"`), asserts no `unhandledRejection` fires via a real `process.on("unhandledRejection", ...)` listener, and asserts the in-flight capacity slot is still freed after the executor rejects. 30 tests total, all passing.
-- **`src/probes.ts`** - reworded two comments that cited `mejoras_futuras.txt`, a private/unpublished internal file with no public counterpart in this repo, leaving readers of the public source with a dead reference. Reworded to be self-contained without changing their technical meaning.
+- **`src/probes.ts`** - reworded two comments to remove dead references and
+  make their technical scope self-contained, without changing behaviour.
 - Both issues were found during a live ecosystem-wide bug audit across the HYDRA-UMC repos, not from a user-reported failure.
 
 ## [0.0.3] - Real v0: command allowlist, backpressure and timeout

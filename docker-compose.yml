@@ -23,7 +23,8 @@
 # logs -f` is enough to confirm the whole Gateway is actually up, no
 # separate healthcheck tooling required for this first real integration
 # pass. Per-child HTTP/TCP reachability probes from the gateway's own
-# GET /status are tracked in mejoras_futuras.txt.
+# GET /status require protocol-specific integration work and are not
+# represented as current functionality.
 
 services:
   gateway-industrial:
