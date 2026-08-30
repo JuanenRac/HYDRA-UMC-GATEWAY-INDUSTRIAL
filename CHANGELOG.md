@@ -30,6 +30,17 @@ semantic-versioning judgment calls:
   (`tests/server.test.ts`, `tests/probes.test.ts` - 9/9 passing).
   Documentation-only - no code changed, no version bump.
 
+## [0.0.6] - Fixed a real version drift, again
+
+- Re-hit the exact same class of bug 0.0.3's own changelog entry already
+  documented and fixed in `build.sh`/`build.bat`: calling
+  `bump_manifest_version.py` directly (bypassing those scripts) before
+  ever running a real `npm run build` left `package.json` one step
+  behind once `npm run build`'s own wired-in `scripts/bump-version.mjs`
+  ran and bumped it again. Reconciled with `bump_manifest_version.py
+  --sync`, matching the real intended order those build scripts already
+  encode. 30/30 tests still passing.
+
 ## [0.0.5] - Real ecosystem live-status opt-in
 
 - **`hydra-umc.project.json`** declares its real `service.port` (8000)
