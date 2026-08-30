@@ -39,6 +39,28 @@ semantic-versioning judgment calls:
   (`tests/server.test.ts`, `tests/probes.test.ts` - 9/9 passing).
   Documentation-only - no code changed, no version bump.
 
+## [0.0.7] - Fast /health, separate from the real deep /status diagnostic
+
+- **`GET /health`** (new) - answers 200 immediately, with no downstream
+  child probes. Found live while running the whole ecosystem to check it
+  end-to-end: `/status` is a genuine deep diagnostic (a real reachability
+  probe against every configured child, each with its own real connect
+  timeout that legitimately takes ~2s when a child is down) - pointed at
+  that as its `health_path`, HYDRA-UMC-SERVER's own ecosystem-wide
+  `/api/ecosystem/status` scanner (which budgets only 800ms per probe)
+  reported this gateway as DOWN whenever its children were unreachable,
+  even though the gateway process itself was perfectly healthy. `/status`
+  itself is unchanged - still the real per-child diagnostic, just no
+  longer doing double duty as a liveness probe too.
+- `hydra-umc.project.json`'s own `service.health_path` updated from
+  `/status` to `/health` to match.
+- Verified: 2 new tests (`tests/server.test.ts`, one proving `/health`
+  answers in well under the scanner's own 800ms budget, one proving it
+  stays 200 with every child stand-in closed) - 33/33 passing. Also
+  verified live against a real running instance: `/api/ecosystem/status`
+  flipped from `live: false` to `live: true` for this project after the
+  fix, with no other project's probe affected.
+
 ## [0.0.6] - Fixed a real version drift, again
 
 - Re-hit the exact same class of bug 0.0.3's own changelog entry already

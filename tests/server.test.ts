@@ -106,6 +106,37 @@ describe("HYDRA-UMC-GATEWAY-INDUSTRIAL GET /status (real reachability checks)", 
   });
 });
 
+describe("HYDRA-UMC-GATEWAY-INDUSTRIAL GET /health (fast liveness, no downstream probes)", () => {
+  it("answers 200 immediately, independent of child reachability", async () => {
+    // Real regression case: this ran against the SAME beforeEach as the
+    // /status suite above (3 real child stand-ins, real PROBE_TIMEOUT_MS)
+    // to prove /health does NOT wait on them - unlike /status, whose own
+    // real per-child connect timeout can legitimately take hundreds of ms
+    // when a child is unreachable, which made an ecosystem-wide liveness
+    // scanner budgeting far less than that per probe (see
+    // HYDRA-UMC-SERVER's own /api/ecosystem/status) misreport this
+    // gateway as down even while its own process was perfectly healthy.
+    const start = Date.now();
+    const res = await request(buildApp()).get("/health");
+    const elapsedMs = Date.now() - start;
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("ok");
+    expect(res.body.gateway).toBe("HYDRA-UMC-GATEWAY-INDUSTRIAL");
+    // Comfortably under the real ecosystem scanner's own 800ms per-probe
+    // budget (server.ts's own SERVICE_PROBE_TIMEOUT_MS) - generous margin
+    // for a slow CI runner, still proves this never touches the network.
+    expect(elapsedMs).toBeLessThan(400);
+  });
+
+  it("stays 200 even with every child stand-in closed", async () => {
+    await new Promise<void>((resolve) => opcuaStub.close(() => resolve()));
+    await new Promise<void>((resolve) => mqttStub.close(() => resolve()));
+    await new Promise<void>((resolve) => mtconnectStub.close(() => resolve()));
+    const res = await request(buildApp()).get("/health");
+    expect(res.status).toBe(200);
+  });
+});
+
 describe("HYDRA-UMC-GATEWAY-INDUSTRIAL POST /command (real allowlist + backpressure)", () => {
   it("relays an allowlisted operation against a reachable child (real reachability probe)", async () => {
     const res = await request(buildApp())

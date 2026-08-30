@@ -118,6 +118,21 @@ export function buildApp(options: BuildAppOptions = {}) {
   // counter.
   const dispatcher = options.commandDispatcher ?? new CommandDispatcher({ executor: buildCommandExecutor(buildChildren()) });
 
+  // Real, fast liveness probe - deliberately separate from /status below,
+  // which is a genuine deep diagnostic (real reachability checks against
+  // every configured child, each with its own real connect timeout that
+  // can legitimately take ~2s when a child is down). Found live: the
+  // ecosystem-wide /api/ecosystem/status scanner (HYDRA-UMC-SERVER) budgets
+  // only 800ms per probe - pointed at /status, a gateway whose children
+  // are unreachable would report itself DOWN in that scan even though the
+  // gateway process itself is perfectly healthy, exactly the "green bulb
+  // that means something real" property that scan exists to provide. This
+  // route answers "is the gateway process itself up", nothing about its
+  // children - that question stays /status's own job, unchanged.
+  app.get("/health", (_req, res) => {
+    res.json({ gateway: "HYDRA-UMC-GATEWAY-INDUSTRIAL", version: readPackageVersion(), status: "ok" });
+  });
+
   app.get("/status", async (_req, res) => {
     const children = buildChildren();
     const results = await Promise.all(

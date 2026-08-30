@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "ecosystem": "HYDRA-UMC",
   "name": "HYDRA-UMC-GATEWAY-INDUSTRIAL",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "role": "api",
   "stack": "node",
   "technologies": [
@@ -22,6 +22,6 @@
   },
   "service": {
     "port": 8000,
-    "health_path": "/status"
+    "health_path": "/health"
   }
 }
