@@ -39,6 +39,26 @@ semantic-versioning judgment calls:
   (`tests/server.test.ts`, `tests/probes.test.ts` - 9/9 passing).
   Documentation-only - no code changed, no version bump.
 
+## [0.0.8] - Fixed the Docker image: MODULE_NOT_FOUND on every real run
+
+- **`Dockerfile`'s runtime stage never installed dependencies** - real bug
+  found live building and running this image (and its 3 real children -
+  HYDRA-UMC-OPCUA-SERVER, HYDRA-UMC-MQTT-BROKER,
+  HYDRA-UMC-MTCONNECT-ADAPTER, same fix applied to each) for the first
+  time via this repo's own `docker-compose.yml`: the build stage bundles
+  with esbuild's own `--packages=external` (deliberate - keeps real npm
+  dependencies as real `require()` calls rather than inlining them), so
+  the runtime stage needed them installed separately - it never was, so
+  every container crashed immediately with `MODULE_NOT_FOUND` on every
+  real start. Now copies `package-lock.json` too and runs
+  `npm ci --omit=dev` in the runtime stage, the same pattern
+  HYDRA-UMC-OS's own `install_server.sh` already uses for
+  HYDRA-UMC-SERVER (also esbuild + `--packages=external`). Verified
+  live: `docker compose up -d --build` now brings up all 4 containers
+  and stays up, and this repo's own `GET /status` reports
+  `"allReachable":true` for all 3 children with real measured
+  latencies.
+
 ## [0.0.7] - Fast /health, separate from the real deep /status diagnostic
 
 - **`GET /health`** (new) - answers 200 immediately, with no downstream
