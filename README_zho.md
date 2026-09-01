@@ -58,7 +58,7 @@ flowchart LR
 * **为何本项目是其 3 个子项目的集成父项目，而非平级项目。** HYDRA-UMC-OPCUA-SERVER、HYDRA-UMC-MQTT-BROKER 和 HYDRA-UMC-MTCONNECT-ADAPTER 都将*同一个*底层的 HYDRA-UMC-SERVER 状态转换为 3 种不同的工业协议——将共享的路由/认证逻辑集中于一处，可避免出现 3 个独立的、可能互不一致的同一状态转换实现。
 * **为何是 3 个独立的协议适配器，而非一个大而全的网关。** OPC-UA、MQTT 和 MTConnect 在结构上截然不同（地址空间 vs. 发布/订阅主题 vs. XML 设备/代理流）——每个协议对应一个进程，意味着一个缓慢或损坏的 MQTT 客户端永远不会影响 OPC-UA 客户端，并且每个协议都可以按部署独立启用/禁用。
 * **为何入口点今天只打印身份/版本，在健康检查监听器启动后才退出。** 处于脚手架（scaffolding）阶段：证明该进程能够启动并保持运行（而非像该生态系统中大多数其他 Node 骨架那样只是运行后退出），先于真正的协议转换逻辑，因为一个真正的网关本质上是一项长期运行的服务。
-* **这如何融入生态系统的其余部分。** 作为 Industrial Gateway 系列的集成父项目——将 HYDRA-UMC-SERVER 自身的状态暴露给使用 OPC-UA、MQTT 或 MTConnect 而非本生态系统自身 REST/WebSocket API 的车间系统（MES/SCADA/历史数据库）。
+* **这如何融入生态系统的其余部分。** 作为 工业网关 系列的集成父项目——将 HYDRA-UMC-SERVER 自身的状态暴露给使用 OPC-UA、MQTT 或 MTConnect 而非本生态系统自身 REST/WebSocket API 的车间系统（MES/SCADA/历史数据库）。
 * **`GET /status` 在每次请求时都会执行真实的实时检查。** `src/probes.ts` 对每个子服务执行真实的 TCP 连接（OPC-UA/MQTT）或真实的 HTTP `GET` 请求（MTConnect）——每个子服务的 `reachable`/`latencyMs`/`error` 以及汇总的 `allReachable` 都是在请求发生时实时计算的，而不是从静态或缓存的列表返回。已完成端到端验证：启动全部 3 个真实子服务后，`/status` 报告全部可达；随后真正终止其中一个，下一次 `/status` 调用正确地仅将该子服务标记为不可达，并返回真实的 `ECONNREFUSED` 错误。每个子服务的主机/端口/URL 均可通过环境变量配置，默认值与 `docker-compose.yml` 已使用的服务名相同。
 * **为何 `POST /command` 的白名单是默认拒绝而非默认允许。** 一个会转发任意操作字符串的工业网关，一旦某个子服务暴露出真正的写入路径，就会成为一个隐患——从「除非明确列出，否则一律不允许」出发，意味着添加一个危险操作（一次 OPC-UA 节点写入、一次 MQTT 保留配置发布）永远是日后一个经过深思熟虑、可审查的决定，而不是今天一个意外的默认行为。
 * **为何 `CommandDispatcher.dispatch()` 中授权检查先于背压检查。** 无论网关当前有多忙，一个未经授权的命令都必须以同样的方式被拒绝——如果先检查容量，一个不被允许的操作有时可能因为恰好有空闲槽位而「意外通过」（accepted），有时又可能因为槽位已满而被读作「只是太忙」，从而通过一个本应纯粹基于授权的决策泄露出网关负载的时序信息。
@@ -170,7 +170,7 @@ curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -
 * **第一阶段：** OPC-UA 发布/订阅实现，用于高速数据交换和传统协议桥接。
 * **第二阶段：** 用于海量 IoT 设备管理和高并发的 MQTT Broker 集群。
 * **第三阶段：** MTConnect 适配器支持，用于多厂商 CNC 和 PLC 机械集成。
-* **第四阶段：** Industrial Gateway 完整的 ISO-27001 网络安全合规性以及 Profinet 软件适配器支持。
+* **第四阶段：** 工业网关 完整的 ISO-27001 网络安全合规性以及 Profinet 软件适配器支持。
 
 ---
 
@@ -182,7 +182,7 @@ curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -
 
 ### 项目族
 
-**父项目：** 无——本项目本身就是 Industrial Gateway 系列的集成父项目。
+**父项目：** 无——本项目本身就是 工业网关 系列的集成父项目。
 
 **子项目：**
 - **[HYDRA-UMC-OPCUA-SERVER](https://github.com/JuanenRac/HYDRA-UMC-OPCUA-SERVER)** —— 本网关所路由经过的 OPC-UA 协议适配器。

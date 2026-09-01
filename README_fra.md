@@ -54,7 +54,7 @@ flowchart LR
 * **Pourquoi c'est le parent d'intégration, pas un pair, de ses 3 enfants.** HYDRA-UMC-OPCUA-SERVER, HYDRA-UMC-MQTT-BROKER et HYDRA-UMC-MTCONNECT-ADAPTER traduisent tous le MÊME état sous-jacent de HYDRA-UMC-SERVER vers 3 protocoles industriels différents - posséder le routage/l'authentification partagés à un seul endroit évite 3 traductions indépendantes et potentiellement incohérentes du même état.
 * **Pourquoi 3 adaptateurs de protocole séparés, pas une passerelle qui fait tout.** OPC-UA, MQTT et MTConnect sont structurellement différents (espace d'adressage contre sujets pub/sub contre flux XML device/agent) - un processus par protocole signifie qu'un client MQTT lent ou cassé n'affecte jamais celui d'OPC-UA, et chacun peut être activé/désactivé indépendamment selon le déploiement.
 * **Pourquoi le point d'entrée n'imprime qu'identité/version, et se termine après la mise en place d'un listener de health-check.** Étape d'andamiaje : prouver que le processus démarre et reste actif (pas seulement s'exécute et se termine, contrairement à la plupart des autres squelettes Node de cet écosystème) précède la vraie logique de traduction de protocole, une vraie passerelle étant par nature un service de longue durée.
-* **Comment cela s'intègre dans le reste de l'écosystème.** Le parent d'intégration de la famille Industrial Gateway - expose le propre état de HYDRA-UMC-SERVER aux systèmes d'atelier (MES/SCADA/historiens) qui parlent OPC-UA, MQTT ou MTConnect plutôt que la propre API REST/WebSocket de cet écosystème.
+* **Comment cela s'intègre dans le reste de l'écosystème.** Le parent d'intégration de la famille Passerelle Industrielle - expose le propre état de HYDRA-UMC-SERVER aux systèmes d'atelier (MES/SCADA/historiens) qui parlent OPC-UA, MQTT ou MTConnect plutôt que la propre API REST/WebSocket de cet écosystème.
 * **`GET /status` effectue une vérification réelle et en direct à chaque requête.** `src/probes.ts` réalise une vraie connexion TCP pour OPC-UA/MQTT et une vraie requête HTTP `GET` pour MTConnect vers chaque enfant - `reachable`/`latencyMs`/`error` par enfant et un `allReachable` agrégé sont calculés au moment de la requête, et non renvoyés depuis une liste statique ou en cache. Vérifié de bout en bout : les 3 enfants réels ont été démarrés, `/status` les a tous signalés comme accessibles, l'un d'eux a ensuite été réellement arrêté, et l'appel suivant à `/status` a correctement basculé uniquement cet enfant en inaccessible avec un vrai `ECONNREFUSED`. L'hôte/port/URL de chaque enfant est configurable via des variables d'environnement, avec pour valeur par défaut le nom de service que `docker-compose.yml` utilise déjà.
 * **Pourquoi la liste d'autorisation de `POST /command` est par défaut-refus, pas par défaut-autorisation.** Une passerelle industrielle qui relaie n'importe quelle chaîne d'opération qu'on lui donne est un risque dès l'instant où un enfant expose un vrai chemin d'écriture - partir de « rien n'est autorisé sauf mention explicite » signifie qu'ajouter une opération dangereuse (une écriture de nœud OPC-UA, une publication de config retenue MQTT) est toujours une décision délibérée et révisable plus tard, jamais un défaut accidentel aujourd'hui.
 * **Pourquoi l'autorisation est vérifiée avant le backpressure dans `CommandDispatcher.dispatch()`.** Une commande non autorisée doit être rejetée de la même façon quelle que soit l'occupation actuelle de la passerelle - si la capacité était vérifiée en premier, une opération interdite pourrait parfois se faufiler comme « acceptée » (un créneau était libre) ou parfois se lire comme « juste occupée » (il ne l'était pas), fuitant des informations de timing sur la charge de la passerelle à travers ce qui devrait être une décision purement d'autorisation.
@@ -169,7 +169,7 @@ d'atteindre un segment à deux chiffres (`0.0.9` -> `0.1.0`, pas `0.0.10`).
 * **Phase 1 :** Implémentation d'OPC-UA Pub/Sub pour l'échange de données à haute vitesse et le pontage des protocoles hérités.
 * **Phase 2 :** Cluster de brokers MQTT pour la gestion massive des appareils IoT et une haute simultanéité.
 * **Phase 3 :** Prise en charge de l'adaptateur MTConnect pour l'intégration de machines CNC et d'automates multi-fournisseurs.
-* **Phase 4 :** Conformité totale à la cybersécurité ISO-27001 pour l'Industrial Gateway et prise en charge de l'adaptateur logiciel Profinet.
+* **Phase 4 :** Conformité totale à la cybersécurité ISO-27001 pour l'Passerelle Industrielle et prise en charge de l'adaptateur logiciel Profinet.
 
 ---
 
@@ -179,7 +179,7 @@ Ce projet fait partie d'un écosystème robotique plus large du même auteur (Ju
 
 ### Famille
 
-**Parent :** aucun — ce projet est lui-même le parent d'intégration de la famille Industrial Gateway.
+**Parent :** aucun — ce projet est lui-même le parent d'intégration de la famille Passerelle Industrielle.
 
 **Enfants :**
 - **[HYDRA-UMC-OPCUA-SERVER](https://github.com/JuanenRac/HYDRA-UMC-OPCUA-SERVER)** — l'adaptateur de protocole OPC-UA par lequel route cette passerelle.
@@ -208,40 +208,40 @@ Ce projet fait partie d'un écosystème robotique plus large du même auteur (Ju
 - **[URTC-TESTER](https://github.com/JuanenRac/URTC-TESTER)** — outil de bureau de diagnostic CAN en direct.
 - **[URTC-WEB-STUDIO](https://github.com/JuanenRac/URTC-WEB-STUDIO)** — alternative basée navigateur via l'API Web Serial.
 
-**🎥 Vision AI Node (Hailo-8)**
+**🎥 Nœud de Vision IA (Hailo-8)**
 - [HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE)
 - [HYDRA-UMC-VISION-STREAMER](https://github.com/JuanenRac/HYDRA-UMC-VISION-STREAMER)
 - [HYDRA-UMC-DETECTION-HEF](https://github.com/JuanenRac/HYDRA-UMC-DETECTION-HEF)
 - [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES)
 - [HYDRA-UMC-VISUAL-SERVOING-API](https://github.com/JuanenRac/HYDRA-UMC-VISUAL-SERVOING-API)
 
-**🧠 Cognitive AI Node (Hailo-10)**
+**🧠 Nœud Cognitif IA (Hailo-10)**
 - [HYDRA-UMC-COGNITIVE-NODE](https://github.com/JuanenRac/HYDRA-UMC-COGNITIVE-NODE)
 - [HYDRA-UMC-VLA-ENGINE](https://github.com/JuanenRac/HYDRA-UMC-VLA-ENGINE)
 - [HYDRA-UMC-VOICE-UI](https://github.com/JuanenRac/HYDRA-UMC-VOICE-UI)
 - [HYDRA-UMC-SEMANTIC-PLANNER](https://github.com/JuanenRac/HYDRA-UMC-SEMANTIC-PLANNER)
 - [HYDRA-UMC-DOCS-QA](https://github.com/JuanenRac/HYDRA-UMC-DOCS-QA)
 
-**🐝 Orchestration & Swarm**
+**🐝 Orchestration et Essaim**
 - [HYDRA-UMC-ORCHESTRATOR](https://github.com/JuanenRac/HYDRA-UMC-ORCHESTRATOR)
 - [HYDRA-UMC-SWARM-SYNC](https://github.com/JuanenRac/HYDRA-UMC-SWARM-SYNC)
 - [HYDRA-UMC-PATH-PLANNER-3D](https://github.com/JuanenRac/HYDRA-UMC-PATH-PLANNER-3D)
 - [HYDRA-UMC-JOB-DISPATCHER](https://github.com/JuanenRac/HYDRA-UMC-JOB-DISPATCHER)
 - [HYDRA-UMC-NODE-HEALING](https://github.com/JuanenRac/HYDRA-UMC-NODE-HEALING)
 
-**🎮 Digital Twin & Simulation**
+**🎮 Jumeau Numérique et Simulation**
 - [HYDRA-UMC-TWIN](https://github.com/JuanenRac/HYDRA-UMC-TWIN)
 - [HYDRA-UMC-PHYSICS-REPLICA](https://github.com/JuanenRac/HYDRA-UMC-PHYSICS-REPLICA)
 - [HYDRA-UMC-HIL-BRIDGE](https://github.com/JuanenRac/HYDRA-UMC-HIL-BRIDGE)
 - [HYDRA-UMC-SYNTHETIC-DATA-GEN](https://github.com/JuanenRac/HYDRA-UMC-SYNTHETIC-DATA-GEN)
 
-**📊 Data & Analytics**
+**📊 Données et Analytique**
 - [HYDRA-UMC-DATALAKE](https://github.com/JuanenRac/HYDRA-UMC-DATALAKE)
 - [HYDRA-UMC-TELEMETRY-COLLECTOR](https://github.com/JuanenRac/HYDRA-UMC-TELEMETRY-COLLECTOR)
 - [HYDRA-UMC-ANOMALY-DETECTOR](https://github.com/JuanenRac/HYDRA-UMC-ANOMALY-DETECTOR)
 - [HYDRA-UMC-PRODUCTION-REPORTS](https://github.com/JuanenRac/HYDRA-UMC-PRODUCTION-REPORTS)
 
-**🛠️ Complementary Tools**
+**🛠️ Outils Complémentaires**
 - [URTC-SMART-RACK](https://github.com/JuanenRac/URTC-SMART-RACK)
 - [URTC-VISION-TOOL](https://github.com/JuanenRac/URTC-VISION-TOOL)
 - [HYDRA-UMC-WATCH](https://github.com/JuanenRac/HYDRA-UMC-WATCH)
