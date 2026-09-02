@@ -73,6 +73,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── src/
 │   ├── probes.ts        # 每个子服务的真实 TCP/HTTP 可达性检查
 │   ├── command.ts        # 真实的 CommandDispatcher：白名单 + 背压 + 超时
+│   ├── version.ts        # 运行时从 package.json 读取的真实包版本号
 │   └── server.ts         # Express 应用：GET /status、POST /command
 ├── tests/               # 真实的 vitest 套件（probes、server、command）
 ├── docs/               # 文档与映射参考
@@ -82,7 +83,11 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── tools/
 │   ├── build_test.py    # 不递增版本号的构建检查
 │   └── ci_validate.py   # CI 使用的清单/CHANGELOG/文档校验
+├── bump_manifest_version.py # 将 hydra-umc.project.json 的版本与 package.json 同步(--sync)
+├── .env.example         # 环境变量模板
+├── build.sh/.bat        # 递增版本号，然后执行 npm run build
 ├── build-test.sh/.bat   # 不递增版本号的构建检查
+├── dev.sh/.bat           # 无需构建步骤,直接从源代码运行服务器
 ├── Dockerfile           # 本服务自身的容器镜像
 ├── docker-compose.yml   # 将本网关及其 3 个子项目一同启动
 └── README.md

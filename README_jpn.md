@@ -75,6 +75,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── src/
 │   ├── probes.ts        # 各子サービスに対する実際の TCP/HTTP 到達可能性チェック
 │   ├── command.ts        # 実際の CommandDispatcher：アローリスト + バックプレッシャー + タイムアウト
+│   ├── version.ts        # package.json から読み取る実際のパッケージバージョン(実行時)
 │   └── server.ts         # Express アプリ：GET /status、POST /command
 ├── tests/               # 実際の vitest スイート（probes、server、command）
 ├── docs/               # ドキュメントとマッピングリファレンス
@@ -84,7 +85,11 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── tools/
 │   ├── build_test.py    # バージョンを増やさないビルドチェック
 │   └── ci_validate.py   # CI が使用するマニフェスト/CHANGELOG/ドキュメント検証
+├── bump_manifest_version.py # hydra-umc.project.json のバージョンを package.json と同期(--sync)
+├── .env.example         # 環境変数テンプレート
+├── build.sh/.bat        # バージョンを増加させ、その後 npm run build を実行
 ├── build-test.sh/.bat   # バージョンを増やさないビルドチェック
+├── dev.sh/.bat           # ビルドステップなしでソースから直接サーバーを実行
 ├── Dockerfile           # 本サービス自身のコンテナイメージ
 ├── docker-compose.yml   # 本ゲートウェイとその 3 つの子プロジェクトを一緒に起動
 └── README.md

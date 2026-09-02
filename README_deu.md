@@ -69,6 +69,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── src/
 │   ├── probes.ts        # Echte TCP/HTTP-Erreichbarkeitsprüfungen je Kind
 │   ├── command.ts        # Echter CommandDispatcher: Allowlist + Backpressure + Timeout
+│   ├── version.ts        # Echte Paketversion zur Laufzeit, gelesen aus package.json
 │   └── server.ts         # Express-App: GET /status, POST /command
 ├── tests/               # Echte vitest-Suite (probes, server, command)
 ├── docs/               # Dokumentation und Mapping-Referenz
@@ -78,7 +79,11 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── tools/
 │   ├── build_test.py    # Nicht-versionierender Build-Check
 │   └── ci_validate.py   # Manifest/CHANGELOG/Docs-Validierung, von CI genutzt
+├── bump_manifest_version.py # Synchronisiert die Version von hydra-umc.project.json mit der von package.json (--sync)
+├── .env.example         # Umgebungsvariablen-Vorlage
+├── build.sh/.bat        # Erhöht die Version, dann npm run build
 ├── build-test.sh/.bat   # Nicht-versionierender Build-Check
+├── dev.sh/.bat           # Führt den Server direkt aus dem Quellcode aus, ohne Build-Schritt
 ├── Dockerfile           # Eigenes Container-Image dieses Dienstes
 ├── docker-compose.yml   # Startet dieses Gateway + seine 3 Kinder zusammen
 └── README.md
