@@ -55,6 +55,7 @@ flowchart LR
 * **Pourquoi 3 adaptateurs de protocole séparés, pas une passerelle qui fait tout.** OPC-UA, MQTT et MTConnect sont structurellement différents (espace d'adressage contre sujets pub/sub contre flux XML device/agent) - un processus par protocole signifie qu'un client MQTT lent ou cassé n'affecte jamais celui d'OPC-UA, et chacun peut être activé/désactivé indépendamment selon le déploiement.
 * **Pourquoi le point d'entrée n'imprime qu'identité/version, et se termine après la mise en place d'un listener de health-check.** Étape d'andamiaje : prouver que le processus démarre et reste actif (pas seulement s'exécute et se termine, contrairement à la plupart des autres squelettes Node de cet écosystème) précède la vraie logique de traduction de protocole, une vraie passerelle étant par nature un service de longue durée.
 * **Comment cela s'intègre dans le reste de l'écosystème.** Le parent d'intégration de la famille Passerelle Industrielle - expose le propre état de HYDRA-UMC-SERVER aux systèmes d'atelier (MES/SCADA/historiens) qui parlent OPC-UA, MQTT ou MTConnect plutôt que la propre API REST/WebSocket de cet écosystème.
+* **`GET /health` est une vérification de vivacité rapide et distincte - `GET /status` n'est plus utilisé pour ça.** `/status` est un vrai diagnostic profond qui peut légitimement prendre ~2s par enfant inaccessible ; pointé directement dessus, le propre scanner d'état d'écosystème de HYDRA-UMC-SERVER (`/api/ecosystem/status`, qui n'accorde qu'environ 800ms par sonde) signalait ce gateway comme DOWN dès que ses enfants étaient inaccessibles, alors même que le processus du gateway était sain. `/health` répond `{ gateway, version, status: "ok" }` sans aucune sonde vers les enfants, et le propre `service.health_path` de `hydra-umc.project.json` pointe désormais vers cette route plutôt que vers `/status`.
 * **`GET /status` effectue une vérification réelle et en direct à chaque requête.** `src/probes.ts` réalise une vraie connexion TCP pour OPC-UA/MQTT et une vraie requête HTTP `GET` pour MTConnect vers chaque enfant - `reachable`/`latencyMs`/`error` par enfant et un `allReachable` agrégé sont calculés au moment de la requête, et non renvoyés depuis une liste statique ou en cache. Vérifié de bout en bout : les 3 enfants réels ont été démarrés, `/status` les a tous signalés comme accessibles, l'un d'eux a ensuite été réellement arrêté, et l'appel suivant à `/status` a correctement basculé uniquement cet enfant en inaccessible avec un vrai `ECONNREFUSED`. L'hôte/port/URL de chaque enfant est configurable via des variables d'environnement, avec pour valeur par défaut le nom de service que `docker-compose.yml` utilise déjà.
 * **Pourquoi la liste d'autorisation de `POST /command` est par défaut-refus, pas par défaut-autorisation.** Une passerelle industrielle qui relaie n'importe quelle chaîne d'opération qu'on lui donne est un risque dès l'instant où un enfant expose un vrai chemin d'écriture - partir de « rien n'est autorisé sauf mention explicite » signifie qu'ajouter une opération dangereuse (une écriture de nœud OPC-UA, une publication de config retenue MQTT) est toujours une décision délibérée et révisable plus tard, jamais un défaut accidentel aujourd'hui.
 * **Pourquoi l'autorisation est vérifiée avant le backpressure dans `CommandDispatcher.dispatch()`.** Une commande non autorisée doit être rejetée de la même façon quelle que soit l'occupation actuelle de la passerelle - si la capacité était vérifiée en premier, une opération interdite pourrait parfois se faufiler comme « acceptée » (un créneau était libre) ou parfois se lire comme « juste occupée » (il ne l'était pas), fuitant des informations de timing sur la charge de la passerelle à travers ce qui devrait être une décision purement d'autorisation.
@@ -141,9 +142,12 @@ Puis démarrez-le avec :
 npm start
 ```
 
-Le serveur écoute sur `0.0.0.0:8000` - `GET /status` rapporte la version
-propre du Gateway ainsi que le nom/protocole/endpoint de chaque passerelle
-enfant qu'il représente.
+Le serveur écoute sur `0.0.0.0:8000` - `GET /health` est une vérification
+de vivacité rapide sans sonde vers les enfants (c'est ce que pointe le
+propre `service.health_path` de `hydra-umc.project.json`), tandis que
+`GET /status` est le vrai diagnostic profond qui rapporte la version
+propre du Gateway ainsi que le nom/protocole/endpoint/accessibilité de
+chaque passerelle enfant qu'il représente.
 
 Exemple réel - une commande autorisée contre un enfant qui ne tourne pas,
 une opération non autorisée, et une requête malformée :
@@ -264,7 +268,7 @@ Ce projet fait partie de l'écosystème robotique HYDRA-UMC du même auteur (Jua
 
 ## 📚 Documentation & Communauté
 
-- **[docs/API.md](docs/API.md)** — la référence réelle de l'API HTTP : chaque champ de la réponse de `GET /status`, la limite `403`/`429`/`504`/`502` de `POST /command`, et chaque variable d'environnement de configuration, documentés directement à partir de `src/server.ts`/`src/probes.ts`.
+- **[docs/API.md](docs/API.md)** — la référence réelle de l'API HTTP : la sonde de vivacité rapide `GET /health`, chaque champ de la réponse de `GET /status`, la limite `403`/`429`/`504`/`502` de `POST /command`, et chaque variable d'environnement de configuration, documentés directement à partir de `src/server.ts`/`src/probes.ts`.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — pile technologique et lignes directrices de codage pour une pull request.
 - **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** — les normes de comportement attendues dans cette communauté.
 - **[SECURITY.md](SECURITY.md)** — comment signaler une vulnérabilité, et les véritables axes de sécurité de ce projet.

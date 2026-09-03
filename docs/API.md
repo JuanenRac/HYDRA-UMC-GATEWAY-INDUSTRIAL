@@ -10,6 +10,24 @@ Listens on `0.0.0.0:8000` by default (`PORT` env var to override). No authentica
 
 ---
 
+## `GET /health`
+
+A fast liveness probe, deliberately separate from `/status` below: it answers
+"is the gateway process itself up" and never waits on a child. No downstream
+probe is made, so it stays fast (well under the ~800ms budget
+HYDRA-UMC-SERVER's ecosystem-wide `/api/ecosystem/status` scanner allows per
+project) even when all three children are unreachable - `hydra-umc.project.json`'s
+own `service.health_path` points at this route rather than `/status` for
+exactly that reason.
+
+**Response** - always `200`:
+
+```json
+{ "gateway": "HYDRA-UMC-GATEWAY-INDUSTRIAL", "version": "0.1.4", "status": "ok" }
+```
+
+---
+
 ## `GET /status`
 
 Runs a **real network probe** against each child on every request - a TCP connect for OPC-UA/MQTT (`probeTcp()`), a real HTTP `GET` for MTConnect (`probeHttp()`), both in [`src/probes.ts`](../src/probes.ts). Nothing here is cached or a static list - kill a child process and the very next `/status` call reflects it.

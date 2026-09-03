@@ -55,6 +55,7 @@ flowchart LR
 * **Why 3 separate protocol adapters, not one do-everything gateway.** OPC-UA, MQTT and MTConnect are structurally different (address-space vs. pub/sub topics vs. XML device/agent streams) - one process per protocol means a slow/broken MQTT client never affects the OPC-UA one, and each can be enabled/disabled independently per deployment.
 * **Why the entry point only prints identity/version, exits after a health-check listener comes up.** Andamiaje (scaffolding) stage: proving the process starts and stays up (not just runs-and-exits, unlike most of this ecosystem's other Node skeletons) precedes the real protocol-translation logic, since a real gateway is a long-running service by nature.
 * **How this fits the rest of the ecosystem.** The integration parent of the Industrial Gateway family - exposes HYDRA-UMC-SERVER's own state to factory-floor systems (MES/SCADA/historians) that speak OPC-UA, MQTT or MTConnect instead of this ecosystem's own REST/WebSocket API.
+* **`GET /health` is a separate, fast liveness probe - `GET /status` is not used for that anymore.** `/status` is a genuine deep diagnostic that can legitimately take ~2s per unreachable child; pointed directly at it, HYDRA-UMC-SERVER's own ecosystem-wide `/api/ecosystem/status` scanner (which budgets only ~800ms per probe) reported this gateway as DOWN whenever its children were unreachable, even though the gateway process itself was healthy. `/health` answers `{ gateway, version, status: "ok" }` with no downstream probe at all, and `hydra-umc.project.json`'s own `service.health_path` points at it instead of `/status`.
 * **`GET /status` makes a real, live check on every request.** `src/probes.ts` does a real TCP connect for OPC-UA/MQTT and a real HTTP `GET` for MTConnect against each child - `reachable`/`latencyMs`/`error` per child and an aggregated `allReachable` are computed at request time, not returned from a cached or static list. Verified end-to-end: all three real children were started, `/status` reported them all reachable, one was then actually killed, and the very next `/status` call correctly flipped only that child to unreachable with a real `ECONNREFUSED`. Host/port/URL per child are configurable via env vars, defaulting to the exact service names `docker-compose.yml` already uses.
 * **Why `POST /command`'s allowlist is default-deny, not default-allow.** An industrial gateway that forwards any operation string it's handed is a liability the moment a child exposes a real write path - starting from "nothing is allowed unless explicitly listed" means adding a dangerous operation (an OPC-UA node write, an MQTT retained-config publish) is always a deliberate, reviewable decision later, never an accidental default today.
 * **Why authorization is checked before backpressure in `CommandDispatcher.dispatch()`.** An unauthorized command must be rejected the same way regardless of how busy the gateway is right now - if capacity were checked first, a disallowed operation could occasionally slip through as "accepted" (a slot happened to be free) or occasionally read as "just busy" (a slot wasn't), leaking timing information about gateway load through what should be a purely authorization-based decision.
@@ -140,9 +141,11 @@ Then start it with:
 npm start
 ```
 
-The server listens on `0.0.0.0:8000` - `GET /status` reports the
-Gateway's own version plus the name/protocol/endpoint of each child
-bridge it fronts.
+The server listens on `0.0.0.0:8000` - `GET /health` is a fast liveness
+check with no downstream probing (what `hydra-umc.project.json`'s own
+`service.health_path` points at), while `GET /status` is the real deep
+diagnostic that reports the Gateway's own version plus the
+name/protocol/endpoint/reachability of each child bridge it fronts.
 
 Real example - an allowlisted command against a child that isn't running,
 an unauthorized operation, and a malformed request:
@@ -263,7 +266,7 @@ This project is part of the HYDRA-UMC robotics ecosystem by the same author (Jua
 
 ## 📚 Documentation & Community
 
-- **[docs/API.md](docs/API.md)** — the real HTTP API reference: every `GET /status` response field, the `POST /command` `403`/`429`/`504`/`502` boundary, and every configuration env var, documented straight from `src/server.ts`/`src/probes.ts`.
+- **[docs/API.md](docs/API.md)** — the real HTTP API reference: the fast `GET /health` liveness probe, every `GET /status` response field, the `POST /command` `403`/`429`/`504`/`502` boundary, and every configuration env var, documented straight from `src/server.ts`/`src/probes.ts`.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — tech stack and coding guidelines for a pull request.
 - **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** — the standards of behavior expected in this community.
 - **[SECURITY.md](SECURITY.md)** — how to report a vulnerability, and this project's own real security focus areas.

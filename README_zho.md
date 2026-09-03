@@ -59,6 +59,7 @@ flowchart LR
 * **为何是 3 个独立的协议适配器，而非一个大而全的网关。** OPC-UA、MQTT 和 MTConnect 在结构上截然不同（地址空间 vs. 发布/订阅主题 vs. XML 设备/代理流）——每个协议对应一个进程，意味着一个缓慢或损坏的 MQTT 客户端永远不会影响 OPC-UA 客户端，并且每个协议都可以按部署独立启用/禁用。
 * **为何入口点今天只打印身份/版本，在健康检查监听器启动后才退出。** 处于脚手架（scaffolding）阶段：证明该进程能够启动并保持运行（而非像该生态系统中大多数其他 Node 骨架那样只是运行后退出），先于真正的协议转换逻辑，因为一个真正的网关本质上是一项长期运行的服务。
 * **这如何融入生态系统的其余部分。** 作为 工业网关 系列的集成父项目——将 HYDRA-UMC-SERVER 自身的状态暴露给使用 OPC-UA、MQTT 或 MTConnect 而非本生态系统自身 REST/WebSocket API 的车间系统（MES/SCADA/历史数据库）。
+* **`GET /health` 是一个独立的快速存活检查——`GET /status` 不再承担这个用途。** `/status` 是真正的深度诊断，对每个不可达的子服务可能合理地耗时约 2 秒；如果直接指向它，HYDRA-UMC-SERVER 自身的全生态状态扫描器（`/api/ecosystem/status`，每次探测只给约 800 毫秒预算）会在子服务不可达时把这个网关报告为 DOWN，即便网关进程本身完全健康。`/health` 不对任何子服务发起探测，直接返回 `{ gateway, version, status: "ok" }`，`hydra-umc.project.json` 自身的 `service.health_path` 现在指向这里，而不是 `/status`。
 * **`GET /status` 在每次请求时都会执行真实的实时检查。** `src/probes.ts` 对每个子服务执行真实的 TCP 连接（OPC-UA/MQTT）或真实的 HTTP `GET` 请求（MTConnect）——每个子服务的 `reachable`/`latencyMs`/`error` 以及汇总的 `allReachable` 都是在请求发生时实时计算的，而不是从静态或缓存的列表返回。已完成端到端验证：启动全部 3 个真实子服务后，`/status` 报告全部可达；随后真正终止其中一个，下一次 `/status` 调用正确地仅将该子服务标记为不可达，并返回真实的 `ECONNREFUSED` 错误。每个子服务的主机/端口/URL 均可通过环境变量配置，默认值与 `docker-compose.yml` 已使用的服务名相同。
 * **为何 `POST /command` 的白名单是默认拒绝而非默认允许。** 一个会转发任意操作字符串的工业网关，一旦某个子服务暴露出真正的写入路径，就会成为一个隐患——从「除非明确列出，否则一律不允许」出发，意味着添加一个危险操作（一次 OPC-UA 节点写入、一次 MQTT 保留配置发布）永远是日后一个经过深思熟虑、可审查的决定，而不是今天一个意外的默认行为。
 * **为何 `CommandDispatcher.dispatch()` 中授权检查先于背压检查。** 无论网关当前有多忙，一个未经授权的命令都必须以同样的方式被拒绝——如果先检查容量，一个不被允许的操作有时可能因为恰好有空闲槽位而「意外通过」（accepted），有时又可能因为槽位已满而被读作「只是太忙」，从而通过一个本应纯粹基于授权的决策泄露出网关负载的时序信息。
@@ -143,8 +144,10 @@ npm install
 npm start
 ```
 
-服务器监听 `0.0.0.0:8000`——`GET /status` 会报告本网关自身的版本，
-以及它所对接的每个子桥接服务的名称/协议/端点。
+服务器监听 `0.0.0.0:8000`——`GET /health` 是不对子服务探测的快速存活检查
+（`hydra-umc.project.json` 自身的 `service.health_path` 指向的正是这里），
+而 `GET /status` 是真正的深度诊断，会报告本网关自身的版本，以及它所对接的
+每个子桥接服务的名称/协议/端点/可达性。
 
 真实示例——对一个未运行的子服务发出一个白名单内的命令、一个未经
 授权的操作，以及一个格式错误的请求：
@@ -265,7 +268,7 @@ curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -
 
 ## 📚 文档与社区
 
-- **[docs/API.md](docs/API.md)** —— 真实的 HTTP API 参考文档：`GET /status` 响应的每个字段、`POST /command` 的 `403`/`429`/`504`/`502` 边界，以及每个配置用环境变量，均直接从 `src/server.ts`/`src/probes.ts` 整理而成。
+- **[docs/API.md](docs/API.md)** —— 真实的 HTTP API 参考文档：快速存活探测 `GET /health`、`GET /status` 响应的每个字段、`POST /command` 的 `403`/`429`/`504`/`502` 边界，以及每个配置用环境变量，均直接从 `src/server.ts`/`src/probes.ts` 整理而成。
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** —— 提交 Pull Request 所需的技术栈和编码规范。
 - **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** —— 本社区所期望的行为准则。
 - **[SECURITY.md](SECURITY.md)** —— 如何报告漏洞，以及本项目真实的安全关注重点。
