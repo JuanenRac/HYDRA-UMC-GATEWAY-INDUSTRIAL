@@ -265,6 +265,7 @@ curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -
 
 ## 📚 文档与社区
 
+- **[docs/API.md](docs/API.md)** —— 真实的 HTTP API 参考文档：`GET /status` 响应的每个字段、`POST /command` 的 `403`/`429`/`504`/`502` 边界，以及每个配置用环境变量，均直接从 `src/server.ts`/`src/probes.ts` 整理而成。
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** —— 提交 Pull Request 所需的技术栈和编码规范。
 - **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** —— 本社区所期望的行为准则。
 - **[SECURITY.md](SECURITY.md)** —— 如何报告漏洞，以及本项目真实的安全关注重点。

@@ -274,6 +274,7 @@ curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -
 
 ## 📚 ドキュメント & コミュニティ
 
+- **[docs/API.md](docs/API.md)** —— 実際の HTTP API リファレンス: `GET /status` レスポンスの各フィールド、`POST /command` の `403`/`429`/`504`/`502` の境界、および各設定用環境変数を、`src/server.ts`/`src/probes.ts` から直接まとめたもの。
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** —— プルリクエストのための技術スタックとコーディング指針。
 - **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** —— このコミュニティで期待される行動規範。
 - **[SECURITY.md](SECURITY.md)** —— 脆弱性の報告方法と、このプロジェクトの実際のセキュリティ重点領域。

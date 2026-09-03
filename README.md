@@ -263,6 +263,7 @@ This project is part of the HYDRA-UMC robotics ecosystem by the same author (Jua
 
 ## 📚 Documentation & Community
 
+- **[docs/API.md](docs/API.md)** — the real HTTP API reference: every `GET /status` response field, the `POST /command` `403`/`429`/`504`/`502` boundary, and every configuration env var, documented straight from `src/server.ts`/`src/probes.ts`.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — tech stack and coding guidelines for a pull request.
 - **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** — the standards of behavior expected in this community.
 - **[SECURITY.md](SECURITY.md)** — how to report a vulnerability, and this project's own real security focus areas.
