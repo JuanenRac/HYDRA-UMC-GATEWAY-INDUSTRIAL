@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "ecosystem": "HYDRA-UMC",
+  "name": "HYDRA-UMC-GATEWAY-INDUSTRIAL",
+  "version": "0.1.0",
+  "role": "api",
+  "stack": "node",
+  "technologies": [
+    "Node.js",
+    "Express",
+    "real TCP/HTTP reachability probes"
+  ],
+  "deployment_target": "cm5",
+  "maturity": "established",
+  "family": "Industrial Gateway",
+  "parent": null,
+  "build": "npm install && npm run build.",
+  "notes": "Established v0: GET /status makes a real, live reachability check against all 3 children on every request - verified end-to-end, including detecting a real killed sibling. Plus a real command allowlist + backpressure + timeout decision layer (src/command.ts, CommandDispatcher) in front of POST /command: default-deny per-protocol allowlist (only read-like/publish operations allowed in v0), bounded concurrency (no more than maxConcurrent commands in flight, rejected immediately beyond that), and a real timeout - all enforced before any relay attempt, mapped to real HTTP status codes (403/429/504/502). The default executor reuses the existing real reachability probes; an actual protocol-level write is not implemented yet, honestly. src/tls.ts now provides real, opt-in TLS 1.2+/mutual-TLS on this gateway's own HTTP API (TLS_CERT_PATH/TLS_KEY_PATH, optionally TLS_CLIENT_CA_PATH), closing a real gap where the README already advertised mTLS as delivered while the server was actually plain HTTP - verified with a genuine end-to-end mTLS handshake test against real openssl-generated certificates. 42 tests.",
+  "native_version": {
+    "file": "package.json",
+    "pattern": "\"version\":\\s*\"(\\d+)\\.(\\d+)\\.(\\d+)\""
+  },
+  "service": {
+    "port": 8000,
+    "health_path": "/health"
+  }
+}
