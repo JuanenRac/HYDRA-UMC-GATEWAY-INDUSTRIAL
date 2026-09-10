@@ -41,7 +41,7 @@ semantic-versioning judgment calls:
 
 ## [0.1.0] - Real TLS/mTLS on the gateway's own HTTP API
 
-- Found in an ecosystem-wide software-improvements audit: this project's
+- Found while auditing the code: this project's
   own README already advertised a "Security: mTLS / TLS 1.3" badge and
   "Mutual TLS (mTLS) and certificate-based authentication for all factory
   connections" as a delivered Key Feature, but `src/server.ts` was, for
@@ -138,13 +138,13 @@ semantic-versioning judgment calls:
   endpoint now does a real HTTP GET against it (expecting 2xx) instead
   of only reporting static manifest metadata.
 
-## [0.0.4] - Ecosystem bug audit: masked-timeout fix and a dangling private-file reference
+## [0.0.4] - Found while auditing the code: masked-timeout fix and a dangling private-file reference
 
 - **`src/command.ts`** - fixed `withTimeout()`: the `promise.then((value) => {...})` chain had no rejection handler and the wrapping `new Promise((resolve) => {...})` never called `reject`, so an executor that throws/rejects instead of resolving would hang silently until `timeoutMs` elapsed (masking a real executor error as `status: "timeout"`) and would also leave an unhandled promise rejection - which crashes the process by default under modern Node. `withTimeout()` now uses `promise.then(onResolve, onReject)` so whichever of the executor or the timer settles first resolves/rejects the returned promise, and the other becomes a no-op rather than firing late. `CommandDispatcher.dispatch()` now catches a rejecting executor and reports it as a new `"executor_error"` outcome (mapped to HTTP `500` in `server.ts`) instead of letting the exception propagate. The current default executor (`probeTcp`/`probeHttp`-backed, see `probes.ts`) never actually rejects today, so this was latent - but it is exactly the failure mode a future real protocol-level write executor would hit.
 - **3 new tests** (`tests/command.test.ts`) using a deliberately-throwing executor: asserts the outcome is `"executor_error"` (never `"timeout"`), asserts no `unhandledRejection` fires via a real `process.on("unhandledRejection", ...)` listener, and asserts the in-flight capacity slot is still freed after the executor rejects. 30 tests total, all passing.
 - **`src/probes.ts`** - reworded two comments to remove dead references and
   make their technical scope self-contained, without changing behaviour.
-- Both issues were found during a live ecosystem-wide bug audit across the HYDRA-UMC repos, not from a user-reported failure.
+- Both issues were found while auditing the code across the HYDRA-UMC repos, not from a user-reported failure.
 
 ## [0.0.3] - Real v0: command allowlist, backpressure and timeout
 
