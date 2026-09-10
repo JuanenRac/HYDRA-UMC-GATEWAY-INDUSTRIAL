@@ -3,7 +3,7 @@
 // Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
 // GPL-3.0 - see LICENSE
 //
-// Found in an ecosystem-wide software-improvements audit: this project's
+// Found while auditing the code: this project's
 // own README already advertised "Mutual TLS (mTLS) and certificate-based
 // authentication for all factory connections" (Key Features) and a
 // "Security: mTLS / TLS 1.3" badge, but src/server.ts was, for real,
