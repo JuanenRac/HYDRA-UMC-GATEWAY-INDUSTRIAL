@@ -20,6 +20,26 @@ semantic-versioning judgment calls:
 
 ---
 
+## [0.1.2] - Rate limiting and an immutable audit trail for POST /command
+
+- **Rate limiting:** `POST /command` had no volumetric protection at all
+  beyond `CommandDispatcher`'s own concurrency backpressure (which only
+  bounds requests in flight right now, not the rate a caller is allowed
+  to send them at over time). A hand-rolled, in-memory, per-caller
+  fixed-window limiter (`src/rateLimit.ts`) now returns 429 once a caller
+  exceeds `GATEWAY_COMMAND_RATE_MAX` requests (default 60) within
+  `GATEWAY_COMMAND_RATE_WINDOW_MS` (default 60s) - no new dependency,
+  matching this project's own dependency-light `package.json`.
+- **Immutable audit trail:** every real `POST /command` attempt - accepted,
+  allowlist-rejected, rate-limited, unauthenticated, an invalid request
+  body - is now logged as a real, append-only JSON line
+  (`src/audit.ts`, default `logs/command-audit.log`): timestamp, caller
+  identity when authenticated, protocol/operation/target, the real
+  specific outcome, and the resulting HTTP status. Mirrors
+  HYDRA-UMC-SERVER's own `industrialLog()` convention: one persistent
+  write stream kept open for the process lifetime, append-mode, with the
+  same size-based single-file rotation.
+
 ## [0.1.1] - Real per-command caller authentication
 
 - **Real per-command caller authentication:** `POST /command` now supports

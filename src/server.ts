@@ -36,6 +36,8 @@ import {
 } from "./command.js";
 import { resolveTlsConfig, describeTlsMode } from "./tls.js";
 import { resolveCommandAuthConfig, requireCommandAuth, describeCommandAuthMode } from "./auth.js";
+import { CommandRateLimiter, requireCommandRateLimit, resolveRateLimitConfig, describeRateLimitMode } from "./rateLimit.js";
+import { FileCommandAuditLogger, recordCommandAttempt, resolveAuditLogPath, type CommandAuditLogger } from "./audit.js";
 
 // 8000 is free of the three protocol-specific defaults this Gateway
 // fronts (4840 OPC-UA, 1883 MQTT, 5000 MTConnect - see each child's own
@@ -110,6 +112,15 @@ export interface BuildAppOptions {
   // the timeout path deterministically) instead of waiting on real
   // network probes.
   commandDispatcher?: CommandDispatcher;
+  // Overridable so tests can use a tiny window/limit to exercise 429s
+  // deterministically instead of firing 60 real requests, and so a fresh
+  // limiter (its own in-memory state) is used per test instead of a
+  // module-level singleton bleeding state across them.
+  rateLimiter?: CommandRateLimiter;
+  // Overridable so tests can assert on the exact real audit entries a
+  // request produced (InMemoryCommandAuditLogger, audit.ts) instead of
+  // depending on - or polluting - a real log file on disk.
+  auditLogger?: CommandAuditLogger;
 }
 
 export function buildApp(options: BuildAppOptions = {}) {
@@ -122,6 +133,8 @@ export function buildApp(options: BuildAppOptions = {}) {
   const dispatcher = options.commandDispatcher ?? new CommandDispatcher({ executor: buildCommandExecutor(buildChildren()) });
   const commandAuthConfig = resolveCommandAuthConfig();
   const commandAuthMiddleware = commandAuthConfig ? [requireCommandAuth(commandAuthConfig)] : [];
+  const rateLimiter = options.rateLimiter ?? new CommandRateLimiter();
+  const auditLogger = options.auditLogger ?? new FileCommandAuditLogger();
 
   // Real, fast liveness probe - deliberately separate from /status below,
   // which is a genuine deep diagnostic (real reachability checks against
@@ -171,26 +184,43 @@ export function buildApp(options: BuildAppOptions = {}) {
     executor_error: 500,
   };
 
-  app.post("/command", ...commandAuthMiddleware, async (req, res) => {
-    const body = req.body ?? {};
-    const { protocol, operation, target, timeoutMs } = body;
-    if (typeof protocol !== "string" || typeof operation !== "string" || typeof target !== "string") {
-      res.status(400).json({ error: "protocol, operation and target are required strings" });
-      return;
-    }
-    if (timeoutMs !== undefined && (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
-      res.status(400).json({ error: "timeoutMs, when present, must be a positive finite number" });
-      return;
-    }
+  app.post(
+    "/command",
+    // Audit logging goes first: res.on("finish") inside it fires
+    // whichever middleware/handler below ends the response, so every
+    // real attempt is recorded - rate-limited, unauthenticated,
+    // allowlist-rejected or accepted alike. Rate limiting runs before
+    // auth so a caller hammering the endpoint with invalid/missing
+    // tokens is bounded too, not just one sending valid commands too
+    // fast - see rateLimit.ts's own header comment.
+    recordCommandAttempt(auditLogger),
+    requireCommandRateLimit(rateLimiter),
+    ...commandAuthMiddleware,
+    async (req, res) => {
+      const body = req.body ?? {};
+      const { protocol, operation, target, timeoutMs } = body;
+      if (typeof protocol !== "string" || typeof operation !== "string" || typeof target !== "string") {
+        res.locals.auditOutcome = "invalid_request";
+        res.status(400).json({ error: "protocol, operation and target are required strings" });
+        return;
+      }
+      if (timeoutMs !== undefined && (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
+        res.locals.auditOutcome = "invalid_request";
+        res.status(400).json({ error: "timeoutMs, when present, must be a positive finite number" });
+        return;
+      }
 
-    const outcome = await dispatcher.dispatch({
-      protocol: protocol as Protocol,
-      operation,
-      target,
-      timeoutMs,
-    });
-    res.status(OUTCOME_HTTP_STATUS[outcome.status] ?? 500).json(outcome);
-  });
+      const outcome = await dispatcher.dispatch({
+        protocol: protocol as Protocol,
+        operation,
+        target,
+        timeoutMs,
+      });
+      res.locals.auditOutcome = outcome.status;
+      if ("reason" in outcome) res.locals.auditReason = outcome.reason;
+      res.status(OUTCOME_HTTP_STATUS[outcome.status] ?? 500).json(outcome);
+    },
+  );
 
   return app;
 }
@@ -206,6 +236,7 @@ function main() {
   const scheme = tlsConfig ? "https" : "http";
   const server = tlsConfig ? createHttpsServer(tlsConfig, app) : app;
   const commandAuthConfigForBanner = resolveCommandAuthConfig();
+  const rateLimitConfigForBanner = resolveRateLimitConfig();
 
   server.listen(PORT, "0.0.0.0", () => {
     console.log("=================================================");
@@ -214,6 +245,8 @@ function main() {
     console.log(` STATUS: Running on port ${PORT} - status: ${scheme}://localhost:${PORT}/status`);
     console.log(` SECURITY: ${describeTlsMode(tlsConfig)}`);
     console.log(` COMMAND AUTH: ${describeCommandAuthMode(commandAuthConfigForBanner)}`);
+    console.log(` RATE LIMIT: ${describeRateLimitMode(rateLimitConfigForBanner)}`);
+    console.log(` AUDIT: every POST /command attempt logged to ${resolveAuditLogPath()}`);
     console.log(" CHILDREN: OPC-UA (4840) / MQTT (1883) / MTConnect (5000) - see docker-compose.yml");
     console.log("=================================================");
   });
