@@ -6,9 +6,11 @@ live reachability check of the three protocol bridges this Gateway
 fronts (HYDRA-UMC-OPCUA-SERVER, HYDRA-UMC-MQTT-BROKER,
 HYDRA-UMC-MTCONNECT-ADAPTER) into a single status surface.
 
-Listens on `0.0.0.0:8000` by default (`PORT` env var to override). No
-application-level authentication - internal/same-network use, real
-TLS/mTLS below is this gateway's own transport-level control instead.
+Listens on `0.0.0.0:8000` by default (`PORT` env var to override).
+`GET /health` and `GET /status` have no application-level authentication
+(internal/same-network use, real TLS/mTLS below is this gateway's own
+transport-level control instead). `POST /command` additionally supports
+opt-in per-caller JWT authentication - see below.
 
 ---
 
@@ -25,6 +27,22 @@ signed by that CA, before any request is even parsed. See
 but-unreadable path is a real startup error, never a silent fall-back to
 plaintext HTTP - see the real startup banner's own `SECURITY:` line for
 which of the three modes (plain HTTP / TLS / mutual TLS) is active.
+
+---
+
+## Security: per-command caller authentication (`POST /command`)
+
+Opt-in via `GATEWAY_JWT_SECRET`. Unset (the default), `POST /command`
+has no caller authentication beyond `src/command.ts`'s own allowlist -
+the startup banner's `COMMAND AUTH:` line says so in plain text. Set,
+every `POST /command` request must carry `Authorization: Bearer <token>`,
+a JWT signed with that same secret using HS256 (the algorithm is pinned
+explicitly in [`src/auth.ts`](../src/auth.ts), never left to the
+library's default, as defense-in-depth against algorithm-confusion
+attacks). Missing header is `401`; an invalid, expired, or wrong-algorithm
+token is `403` - both checked before the request ever reaches the
+allowlist. This is independent of mTLS: mTLS (when configured) identifies
+the TLS peer, this identifies who issued the specific command.
 
 ---
 

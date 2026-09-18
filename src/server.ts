@@ -35,6 +35,7 @@ import {
   type Protocol,
 } from "./command.js";
 import { resolveTlsConfig, describeTlsMode } from "./tls.js";
+import { resolveCommandAuthConfig, requireCommandAuth, describeCommandAuthMode } from "./auth.js";
 
 // 8000 is free of the three protocol-specific defaults this Gateway
 // fronts (4840 OPC-UA, 1883 MQTT, 5000 MTConnect - see each child's own
@@ -119,6 +120,8 @@ export function buildApp(options: BuildAppOptions = {}) {
   // only means anything if concurrent requests share the same in-flight
   // counter.
   const dispatcher = options.commandDispatcher ?? new CommandDispatcher({ executor: buildCommandExecutor(buildChildren()) });
+  const commandAuthConfig = resolveCommandAuthConfig();
+  const commandAuthMiddleware = commandAuthConfig ? [requireCommandAuth(commandAuthConfig)] : [];
 
   // Real, fast liveness probe - deliberately separate from /status below,
   // which is a genuine deep diagnostic (real reachability checks against
@@ -168,7 +171,7 @@ export function buildApp(options: BuildAppOptions = {}) {
     executor_error: 500,
   };
 
-  app.post("/command", async (req, res) => {
+  app.post("/command", ...commandAuthMiddleware, async (req, res) => {
     const body = req.body ?? {};
     const { protocol, operation, target, timeoutMs } = body;
     if (typeof protocol !== "string" || typeof operation !== "string" || typeof target !== "string") {
@@ -202,6 +205,7 @@ function main() {
   const tlsConfig = resolveTlsConfig();
   const scheme = tlsConfig ? "https" : "http";
   const server = tlsConfig ? createHttpsServer(tlsConfig, app) : app;
+  const commandAuthConfigForBanner = resolveCommandAuthConfig();
 
   server.listen(PORT, "0.0.0.0", () => {
     console.log("=================================================");
@@ -209,6 +213,7 @@ function main() {
     console.log(" ROLE: Industry 4.0 interoperability bridge for factory standards");
     console.log(` STATUS: Running on port ${PORT} - status: ${scheme}://localhost:${PORT}/status`);
     console.log(` SECURITY: ${describeTlsMode(tlsConfig)}`);
+    console.log(` COMMAND AUTH: ${describeCommandAuthMode(commandAuthConfigForBanner)}`);
     console.log(" CHILDREN: OPC-UA (4840) / MQTT (1883) / MTConnect (5000) - see docker-compose.yml");
     console.log("=================================================");
   });
