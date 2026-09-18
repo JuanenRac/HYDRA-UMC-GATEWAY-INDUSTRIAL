@@ -20,8 +20,14 @@ semantic-versioning judgment calls:
 
 ---
 
-## [Unreleased]
+## [0.1.1] - Real per-command caller authentication
 
+- **Real per-command caller authentication:** `POST /command` now supports
+  opt-in `GATEWAY_JWT_SECRET`. Set, every request needs a valid HS256
+  `Authorization: Bearer <token>` or it is rejected (`401` missing, `403`
+  invalid/wrong algorithm) before it ever reaches the allowlist. Unset,
+  behavior is unchanged from before - the startup banner says so in plain
+  text either way. Independent of, and complementary to, mTLS.
 - **Timeout-safe backpressure:** a `POST /command` timeout now ends only the
   caller's response budget. Its in-flight capacity stays reserved until the
   real executor settles, so an uncooperative downstream cannot create
