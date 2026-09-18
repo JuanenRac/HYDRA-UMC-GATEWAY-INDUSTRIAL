@@ -51,6 +51,7 @@ export function requireCommandAuth(config: CommandAuthConfig) {
     const header = req.headers.authorization;
     const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : undefined;
     if (!token) {
+      res.locals.auditOutcome = "auth_missing_token";
       res.status(401).json({ error: "missing Authorization: Bearer <token> header" });
       return;
     }
@@ -60,6 +61,8 @@ export function requireCommandAuth(config: CommandAuthConfig) {
       next();
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
+      res.locals.auditOutcome = "auth_invalid_token";
+      res.locals.auditReason = detail;
       res.status(403).json({ error: `invalid or expired command token: ${detail}` });
     }
   };
