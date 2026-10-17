@@ -139,5 +139,22 @@ capacity slot reserved until the underlying executor actually settles, so a
 slow or stuck child cannot repeatedly time out and bypass backpressure.
 
 No protocol-level write is implemented yet. The default executor makes the
-same real reachability probe used by `GET /status`; it reports `200` only when
-the allowlisted target child is reachable and otherwise returns `502`.
+same real reachability probe used by `GET /status`: when the target child is
+reachable it answers `501` with outcome `probe_only` (the child answered, but
+**nothing was executed** - a caller must not read it as a carried-out order), and
+otherwise `502`. `accepted` (`200`) is reserved for an executor that really
+performs the operation.
+
+An MQTT `publish` may only target a concrete topic (no wildcards) inside the topics
+this gateway is allowed to publish to: `hydra/gateway/#` by default, or the filters
+of `GATEWAY_MQTT_PUBLISH_TOPICS`. The bridges' command topics (`hydra/bridges/...`)
+and `$SYS` are never reachable through the gateway, whatever is configured: a free
+publish there would be an unauthenticated order to a machine. A refused topic is
+`403` (`rejected_unauthorized`).
+
+| Var | Default | Affects |
+|---|---|---|
+| `GATEWAY_JWT_SECRET` | unset | Signs the `Authorization: Bearer` token `POST /command` requires. A `NODE_ENV=production` start (docker-compose sets it) refuses to run without a secret of at least 32 characters that is not an example value. |
+| `GATEWAY_ALLOW_ANONYMOUS` | unset | `1` states, on purpose, that a production gateway is an open lab gateway. |
+| `GATEWAY_MQTT_PUBLISH_TOPICS` | `hydra/gateway/#` | Comma-separated MQTT filters an MQTT `publish` may target. |
+| `GATEWAY_BIND_HOST` | `0.0.0.0` | The interface the gateway binds to. |

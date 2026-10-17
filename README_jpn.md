@@ -4,7 +4,7 @@
 
 # 🌐 HYDRA-UMC-GATEWAY-INDUSTRIAL
 
-<p align="center"><a href="README.md">🇺🇸 English</a> | <a href="README_spa.md">🇪🇸 Español</a> | <a href="README_fra.md">🇫🇷 Français</a> | <a href="README_ita.md">🇮🇹 Italiano</a> | <a href="README_deu.md">🇩🇪 Deutsch</a> | <a href="README_zho.md">🇨🇳 简体中文</a> | 🇯🇵 <b>日本語</b></p>
+<p align="center"><a href="README.md">🇺🇸 English</a> | <a href="README_spa.md">🇪🇸 Español</a> | <a href="README_fra.md">🇫🇷 Français</a> | <a href="README_ita.md">🇮🇹 Italiano</a> | <a href="README_deu.md">🇩🇪 Deutsch</a> | <a href="README_zho.md">🇨🇳 简体中文</a> | 🇯🇵 <b>日本語</b> | <a href="README_por.md">🇵🇹 Português</a></p>
 
 ### 🏭 工場標準向けのインダストリー 4.0 相互運用性ブリッジ
 
@@ -36,6 +36,7 @@ MTConnect の XML ストリームとして公開し、Hydra スウォームが�
 * ⚡ **高信頼性：** 24 時間 365 日の産業用稼働に最適化された専用の軽量ブリッジ。
 * 🚦 **実装済み v0 —— コマンドアローリスト + バックプレッシャー：** `POST /command` は、プロトコルごとのデフォルト拒否アローリスト、上限付きの同時実行制限、実際のタイムアウトによって保護されています——今日実際に強制されている内容の詳細は下記「正直な現状確認」を参照してください。
 * 🔐 **コマンドごとの呼び出し元認証：** `POST /command` はオプションの `GATEWAY_JWT_SECRET` にも対応しています——設定すると、すべてのリクエストに有効な `Authorization: Bearer <token>`（HS256、アルゴリズムは明示的に固定）が必要になり、なければアローリストに到達する前に拒否されます。mTLS とは独立しています：これは「誰がコマンドを発行したか」を識別し、mTLS（設定されている場合）は TLS ピアを識別します。
+* 🧱 **本番ポリシーと正直な結果：** 本番起動（compose が設定する `NODE_ENV=production`）では、本物の `GATEWAY_JWT_SECRET`（32 文字以上、例の値でないもの）がないと起動を拒否します（`GATEWAY_ALLOW_ANONYMOUS=1` は、意図的にオープンなラボ用ゲートウェイであることを示します）。デフォルトの executor は子サービスを疎通確認するだけなので、`accepted` ではなく結果 `probe_only`（何も実行されていない）として `501` を返します。MQTT の `publish` はゲートウェイ自身の名前空間（`hydra/gateway/#`、または `GATEWAY_MQTT_PUBLISH_TOPICS`）にのみ送れ、ブリッジのコマンドトピック（`hydra/bridges/...`）や `$SYS` には決して送れません。`GATEWAY_BIND_HOST` でバインドするインターフェースを選べます。*（実装済み）*
 
 **正直な現状確認 —— 今日実際に動くもの：** `POST /command { protocol, operation, target }` は実際に動作します——操作はそのプロトコルのアローリストに明示的に登録されている必要があり（そうでなければ `403`——v0 では読み取り/publish 系の操作のみを許可し、稼働中の PLC の状態を変更しうる操作は許可されていません）、上限を超える数のコマンドが同時に実行されることはなく（超えると `429`）、時間内に完了しなかったコマンドは無期限に保留されるのではなくタイムアウトとして報告されます（`504`）。デフォルトの実行経路は本プロジェクト自身の実際の到達可能性プローブを再利用しています——3 つの子サービスのいずれもまだ実際のコマンド API を公開していないため、実際のプロトコルレベルの書き込みにはまだ至っていないことを正直に示しています。実際に出荷済みの内容は `CHANGELOG.md` を参照してください。
 
@@ -112,6 +113,8 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 （**HYDRA-UMC-OPCUA-SERVER**、**HYDRA-UMC-MQTT-BROKER**、
 **HYDRA-UMC-MTCONNECT-ADAPTER**）とともに 1 つの Docker ネットワーク
 として起動します：
+
+compose には `GATEWAY_JWT_SECRET`、`MQTT_AUTH_JSON`、`MQTT_ACL_JSON` を含む `.env` が必要です（`.env.example` 参照）。本番のゲートウェイとブローカーは、オープンな状態では起動しません。
 
 ```bash
 docker compose up --build

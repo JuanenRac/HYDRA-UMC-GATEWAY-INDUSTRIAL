@@ -36,6 +36,24 @@ export function resolveCommandAuthConfig(env: NodeJS.ProcessEnv = process.env): 
   return { secret };
 }
 
+export const MIN_SECRET_LENGTH = 32;
+const PLACEHOLDER = /(set[_ -]?locally|change[_ -]?me|replace[_ -]?me|your[_ -]?(secret|password)|example|placeholder|remove[_ -]?after)/i;
+
+/**
+ * Why a production start must refuse (null when it may go on). POST /command can relay an operation to the plant floor: in production a missing, short or example secret means anybody
+ * on the network can issue it (or forge a token), so the gateway does not start, unless GATEWAY_ALLOW_ANONYMOUS=1 says on purpose that this is an open lab gateway.
+ */
+export function commandAuthStartupProblem(env: NodeJS.ProcessEnv = process.env): string | null {
+  if ((env.NODE_ENV ?? "").trim().toLowerCase() !== "production") return null;
+  if ((env.GATEWAY_ALLOW_ANONYMOUS ?? "").trim() === "1") return null;
+  const secret = env.GATEWAY_JWT_SECRET?.trim() ?? "";
+  if (!secret) return "GATEWAY_JWT_SECRET is not set: POST /command would accept commands from anybody on the network";
+  if (PLACEHOLDER.test(secret)) return "GATEWAY_JWT_SECRET is an example value: generate a real one (for example `openssl rand -hex 32`)";
+  if (secret.length < MIN_SECRET_LENGTH) return `GATEWAY_JWT_SECRET must have at least ${MIN_SECRET_LENGTH} characters`;
+  if (new Set(secret).size < 8) return "GATEWAY_JWT_SECRET is too repetitive to be a random value";
+  return null;
+}
+
 declare module "express-serve-static-core" {
   interface Request {
     commandCaller?: string;

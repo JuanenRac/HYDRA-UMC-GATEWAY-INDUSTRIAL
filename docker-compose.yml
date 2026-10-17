@@ -35,6 +35,8 @@ services:
       - "8000:8000"
     environment:
       - NODE_ENV=production
+      # A production gateway refuses to start without a real secret (see .env.example): POST /command is signed with it.
+      - GATEWAY_JWT_SECRET=${GATEWAY_JWT_SECRET:?set GATEWAY_JWT_SECRET in .env (see .env.example)}
     depends_on:
       - opcua-server
       - mqtt-broker
@@ -59,6 +61,9 @@ services:
       - "1883:1883"
     environment:
       - NODE_ENV=production
+      # A production broker refuses to start without credentials and an ACL (see .env.example and the broker's own docs).
+      - MQTT_AUTH_JSON=${MQTT_AUTH_JSON:?set MQTT_AUTH_JSON in .env (see .env.example)}
+      - MQTT_ACL_JSON=${MQTT_ACL_JSON:?set MQTT_ACL_JSON in .env (see .env.example)}
     restart: unless-stopped
 
   mtconnect-adapter:

@@ -4,7 +4,7 @@
 
 # 🌐 HYDRA-UMC-GATEWAY-INDUSTRIAL
 
-<p align="center">🇺🇸 <b>English</b> | <a href="README_spa.md">🇪🇸 Español</a> | <a href="README_fra.md">🇫🇷 Français</a> | <a href="README_ita.md">🇮🇹 Italiano</a> | <a href="README_deu.md">🇩🇪 Deutsch</a> | <a href="README_zho.md">🇨🇳 简体中文</a> | <a href="README_jpn.md">🇯🇵 日本語</a></p>
+<p align="center">🇺🇸 <b>English</b> | <a href="README_spa.md">🇪🇸 Español</a> | <a href="README_fra.md">🇫🇷 Français</a> | <a href="README_ita.md">🇮🇹 Italiano</a> | <a href="README_deu.md">🇩🇪 Deutsch</a> | <a href="README_zho.md">🇨🇳 简体中文</a> | <a href="README_jpn.md">🇯🇵 日本語</a> | <a href="README_por.md">🇵🇹 Português</a></p>
 
 ### 🏭 Industry 4.0 Interoperability Bridge for Factory Standards
 
@@ -30,6 +30,7 @@ It acts as a multi-protocol translator, exposing internal robotic states and too
 * ⚡ **High Reliability:** Dedicated lightweight bridge optimized for 24/7 industrial uptime.
 * 🚦 **Real v0 - Command Allowlist + Backpressure:** `POST /command` is gated by a default-deny allowlist per protocol, a bounded concurrency limit, and a real timeout - see "Honesty check" below for exactly what's enforced today.
 * 🔐 **Per-Command Caller Authentication:** `POST /command` also accepts an opt-in `GATEWAY_JWT_SECRET` - once set, every request needs a valid `Authorization: Bearer <token>` (HS256, algorithm pinned explicitly) or it is rejected before it ever reaches the allowlist. Independent of mTLS: this identifies WHO issued the command, mTLS (when configured) identifies the TLS peer.
+* 🧱 **Production Policy and Honest Outcomes:** A production start (`NODE_ENV=production`, which the compose file sets) refuses to run without a real `GATEWAY_JWT_SECRET` (32+ characters, not an example; `GATEWAY_ALLOW_ANONYMOUS=1` says on purpose that it is an open lab gateway). The default executor only probes the child, so it answers `501` with outcome `probe_only` (nothing was executed) instead of `accepted`; an MQTT `publish` may only target the gateway's own namespace (`hydra/gateway/#`, or `GATEWAY_MQTT_PUBLISH_TOPICS`) and never a bridge command topic (`hydra/bridges/...`) or `$SYS`; `GATEWAY_BIND_HOST` chooses the interface. *(implemented)*
 
 **Honesty check - what actually runs today:** `POST /command { protocol, operation, target }` is real: the operation must be explicitly allowlisted for its protocol (`403` if not - v0 only allows read-like/publish operations, nothing that writes to a live PLC), no more than a bounded number of commands run at once (`429` beyond that), and a command that doesn't resolve in time is reported as timed out (`504`) rather than left hanging. The default execution path reuses this project's own real reachability probes - honest that it stops short of an actual OPC-UA/MQTT/MTConnect protocol-level write, since none of the three children expose a real command API yet either. `GATEWAY_JWT_SECRET` is opt-in - unset, `POST /command` has no caller authentication at all beyond the allowlist itself, and the startup banner says so in plain text. See `CHANGELOG.md` for exactly what shipped.
 
@@ -104,6 +105,8 @@ brings up this Gateway alongside its three children
 **HYDRA-UMC-MTCONNECT-ADAPTER**) as one Docker network, assuming the four
 repos are checked out as sibling folders (the layout this ecosystem's
 GitHub org already uses):
+
+The compose file requires a `.env` with `GATEWAY_JWT_SECRET`, `MQTT_AUTH_JSON` and `MQTT_ACL_JSON` (see `.env.example`): a production gateway and broker do not start open.
 
 ```bash
 docker compose up --build

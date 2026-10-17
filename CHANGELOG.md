@@ -20,6 +20,15 @@ semantic-versioning judgment calls:
 
 ---
 
+## [0.1.3] - Production policy, honest probe-only outcome and restricted MQTT publish topics
+
+- A production start (`NODE_ENV=production`, which the compose file sets) refuses to run without a real `GATEWAY_JWT_SECRET` (at least 32 characters, not an example, not repetitive); `GATEWAY_ALLOW_ANONYMOUS=1` states on purpose that it is an open lab gateway.
+- The default executor only probes the child, so it no longer answers `accepted` (`200`): a reachable child gets `501` with outcome `probe_only` ("nothing was executed"), and an unreachable one still gets `502`.
+- An MQTT `publish` may only target a concrete topic inside the gateway's own namespace (`hydra/gateway/#`, or the filters of `GATEWAY_MQTT_PUBLISH_TOPICS`); a wildcard topic, a bridge command topic (`hydra/bridges/...`) and `$SYS` are always refused with `403`.
+- New `GATEWAY_BIND_HOST` chooses the interface the gateway binds to.
+- `docker-compose.yml` now requires `GATEWAY_JWT_SECRET`, `MQTT_AUTH_JSON` and `MQTT_ACL_JSON` (from a `.env`, see `.env.example`) instead of starting a production gateway and broker open.
+- Tests for the probe-only outcome, the refused topics and the production policy (64 tests); `docs/API.md`, `.env.example` and the 7 READMEs describe it, plus a Portuguese README.
+
 ## [0.1.2] - Rate limiting and an immutable audit trail for POST /command
 
 - **Rate limiting:** `POST /command` had no volumetric protection at all

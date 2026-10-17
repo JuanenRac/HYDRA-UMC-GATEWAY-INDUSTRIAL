@@ -75,3 +75,25 @@ describe("HYDRA-UMC-GATEWAY-INDUSTRIAL POST /command (real JWT caller auth, opt-
     expect(res.body.status).toBe("accepted");
   });
 });
+
+// ---- the production start ----
+import { commandAuthStartupProblem } from "../src/auth.js";
+
+describe("commandAuthStartupProblem (a production start must not leave POST /command open)", () => {
+  const STRONG = "f3a9c07b1d5e48a2b6c1e90d7a4f3b28c5d6e7f8a9b0c1d2";
+  it("is silent outside production and for a good secret", () => {
+    expect(commandAuthStartupProblem({})).toBeNull();
+    expect(commandAuthStartupProblem({ NODE_ENV: "development" })).toBeNull();
+    expect(commandAuthStartupProblem({ NODE_ENV: "production", GATEWAY_JWT_SECRET: STRONG })).toBeNull();
+  });
+  it("refuses a missing, example, short or repetitive secret in production", () => {
+    expect(commandAuthStartupProblem({ NODE_ENV: "production" })).toMatch(/not set/);
+    expect(commandAuthStartupProblem({ NODE_ENV: "production", GATEWAY_JWT_SECRET: "SET_LOCALLY_TO_A_LONG_RANDOM_VALUE" })).toMatch(/example/);
+    expect(commandAuthStartupProblem({ NODE_ENV: "production", GATEWAY_JWT_SECRET: "short" })).toMatch(/at least 32/);
+    expect(commandAuthStartupProblem({ NODE_ENV: "production", GATEWAY_JWT_SECRET: "a".repeat(40) })).toMatch(/repetitive/);
+  });
+  it("allows an open lab gateway only when it is asked for on purpose", () => {
+    expect(commandAuthStartupProblem({ NODE_ENV: "production", GATEWAY_ALLOW_ANONYMOUS: "1" })).toBeNull();
+    expect(commandAuthStartupProblem({ NODE_ENV: "production", GATEWAY_ALLOW_ANONYMOUS: "true" })).toMatch(/not set/);
+  });
+});

@@ -138,12 +138,27 @@ describe("HYDRA-UMC-GATEWAY-INDUSTRIAL GET /health (fast liveness, no downstream
 });
 
 describe("HYDRA-UMC-GATEWAY-INDUSTRIAL POST /command (real allowlist + backpressure)", () => {
-  it("relays an allowlisted operation against a reachable child (real reachability probe)", async () => {
+  it("says honestly that the default executor only probed a reachable child: nothing was executed (501, probe_only)", async () => {
     const res = await request(buildApp())
       .post("/command")
       .send({ protocol: "OPC-UA", operation: "read", target: "ns=2;s=Line1.Status" });
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe("accepted");
+    expect(res.status).toBe(501);
+    expect(res.body.status).toBe("probe_only");
+    expect(res.body.reason).toMatch(/nothing was executed/);
+  });
+
+  it("refuses an MQTT publish to a bridge command topic, a wildcard topic or a topic outside the gateway's namespace", async () => {
+    for (const target of ["hydra/bridges/cnc/cmd/cycle_start_resume", "hydra/gateway/#", "factory/line1/cmd", "$SYS/broker/uptime"]) {
+      const res = await request(buildApp()).post("/command").send({ protocol: "MQTT", operation: "publish", target });
+      expect(res.status, target).toBe(403);
+      expect(res.body.status).toBe("rejected_unauthorized");
+    }
+  });
+
+  it("lets an MQTT publish to the gateway's own namespace through to the executor", async () => {
+    const res = await request(buildApp()).post("/command").send({ protocol: "MQTT", operation: "publish", target: "hydra/gateway/ping" });
+    expect(res.status).toBe(501);
+    expect(res.body.status).toBe("probe_only");
   });
 
   it("rejects a non-allowlisted operation with 403, without ever probing the child", async () => {

@@ -47,13 +47,42 @@ export interface CommandRequest {
 
 export type CommandOutcome =
   | { status: "accepted"; latencyMs: number }
+  // The target answered a reachability probe, but this gateway has no executor that performs the operation: nothing was executed, and the caller must not believe it was.
+  | { status: "probe_only"; latencyMs: number; reason: string }
   | { status: "rejected_unauthorized"; reason: string }
   | { status: "rejected_backpressure"; reason: string }
   | { status: "timeout"; reason: string }
   | { status: "downstream_unreachable"; reason: string }
   | { status: "executor_error"; reason: string };
 
-export type CommandExecutor = (req: CommandRequest) => Promise<{ ok: boolean; detail?: string }>;
+export type CommandExecutor = (req: CommandRequest) => Promise<{ ok: boolean; detail?: string; /** false when the executor only probed the target and performed nothing (default: true) */ executed?: boolean }>;
+
+// The topics an MQTT "publish" may target when nothing else is configured: a namespace of the gateway's own. The bridges' own command topics (hydra/bridges/...) are never
+// reachable through the gateway, whatever is configured, because a free publish there would be an unauthenticated order to a machine.
+export const DEFAULT_MQTT_PUBLISH_TOPICS: readonly string[] = ["hydra/gateway/#"];
+const NEVER_PUBLISH_PREFIXES: readonly string[] = ["hydra/bridges/", "$SYS/", "$"];
+
+/** MQTT topic-vs-filter match for a concrete topic (`+` one level, `#` the rest). */
+export function mqttTopicMatches(topic: string, filter: string): boolean {
+  const topicSegments = topic.split("/");
+  const filterSegments = filter.split("/");
+  for (let i = 0; i < filterSegments.length; i++) {
+    const part = filterSegments[i];
+    if (part === "#") return i === filterSegments.length - 1;
+    if (i >= topicSegments.length) return false;
+    if (part === "+") continue;
+    if (part !== topicSegments[i]) return false;
+  }
+  return topicSegments.length === filterSegments.length;
+}
+
+/** Why a published topic is refused, or null when it is allowed: a concrete topic (no wildcards), inside the configured namespace, never a bridge command topic. */
+export function mqttPublishTopicProblem(topic: string, allowedFilters: readonly string[]): string | null {
+  if (topic === "" || /[+#]/.test(topic) || topic.includes(String.fromCharCode(0))) return "an MQTT publish needs a concrete topic (no wildcards)";
+  if (NEVER_PUBLISH_PREFIXES.some(prefix => topic.startsWith(prefix))) return `the gateway never publishes to '${topic}' (bridge command and system topics are reserved)`;
+  if (!allowedFilters.some(filter => mqttTopicMatches(topic, filter))) return `'${topic}' is outside the topics this gateway may publish to`;
+  return null;
+}
 
 // Default-deny per protocol: only what is listed here is ever forwarded.
 // Deliberately narrow for v0 - no OPC-UA node write, MQTT retained/config
@@ -71,6 +100,8 @@ export interface DispatcherOptions {
   maxConcurrent?: number;
   defaultTimeoutMs?: number;
   executor?: CommandExecutor;
+  /** Topic filters an MQTT publish may target (default DEFAULT_MQTT_PUBLISH_TOPICS). */
+  mqttPublishTopics?: readonly string[];
 }
 
 const TIMEOUT_MARKER = "timeout" as const;
@@ -108,12 +139,14 @@ export class CommandDispatcher {
   private readonly maxConcurrent: number;
   private readonly defaultTimeoutMs: number;
   private readonly executor: CommandExecutor;
+  private readonly mqttPublishTopics: readonly string[];
   private inFlight = 0;
 
   constructor(options: DispatcherOptions = {}) {
     this.allowlist = options.allowlist ?? DEFAULT_ALLOWLIST;
     this.maxConcurrent = options.maxConcurrent ?? 4;
     this.defaultTimeoutMs = options.defaultTimeoutMs ?? 2000;
+    this.mqttPublishTopics = options.mqttPublishTopics ?? DEFAULT_MQTT_PUBLISH_TOPICS;
     this.executor =
       options.executor ??
       (async () => ({ ok: false, detail: "no executor configured for this dispatcher" }));
@@ -139,6 +172,11 @@ export class CommandDispatcher {
       };
     }
 
+    if (req.protocol === "MQTT" && req.operation === "publish") {
+      const problem = mqttPublishTopicProblem(req.target, this.mqttPublishTopics);
+      if (problem) return { status: "rejected_unauthorized", reason: problem };
+    }
+
     if (this.inFlight >= this.maxConcurrent) {
       return {
         status: "rejected_backpressure",
@@ -156,7 +194,7 @@ export class CommandDispatcher {
     const execution = Promise.resolve().then(() => this.executor(req));
     try {
       const timeoutMs = req.timeoutMs ?? this.defaultTimeoutMs;
-      let result: { ok: boolean; detail?: string } | typeof TIMEOUT_MARKER;
+      let result: { ok: boolean; detail?: string; executed?: boolean } | typeof TIMEOUT_MARKER;
       try {
         result = await withTimeout(execution, timeoutMs);
       } catch (err) {
@@ -185,6 +223,9 @@ export class CommandDispatcher {
           status: "downstream_unreachable",
           reason: result.detail ?? `${req.protocol} target "${req.target}" did not confirm the command`,
         };
+      }
+      if (result.executed === false) {
+        return { status: "probe_only", latencyMs: Date.now() - startedAt, reason: result.detail ?? `${req.protocol} target "${req.target}" is reachable, but this gateway has no executor that performs the operation: nothing was executed` };
       }
       return { status: "accepted", latencyMs: Date.now() - startedAt };
     } finally {

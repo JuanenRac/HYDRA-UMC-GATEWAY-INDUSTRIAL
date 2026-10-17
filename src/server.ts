@@ -30,12 +30,13 @@ import { probeHttp, probeTcp, type ProbeResult } from "./probes.js";
 import { readPackageVersion } from "./version.js";
 import {
   CommandDispatcher,
+  DEFAULT_MQTT_PUBLISH_TOPICS,
   type CommandExecutor,
   type CommandRequest,
   type Protocol,
 } from "./command.js";
 import { resolveTlsConfig, describeTlsMode } from "./tls.js";
-import { resolveCommandAuthConfig, requireCommandAuth, describeCommandAuthMode } from "./auth.js";
+import { commandAuthStartupProblem, resolveCommandAuthConfig, requireCommandAuth, describeCommandAuthMode } from "./auth.js";
 import { CommandRateLimiter, requireCommandRateLimit, resolveRateLimitConfig, describeRateLimitMode } from "./rateLimit.js";
 import { FileCommandAuditLogger, recordCommandAttempt, resolveAuditLogPath, type CommandAuditLogger } from "./audit.js";
 
@@ -100,8 +101,9 @@ function buildCommandExecutor(children: ChildSpec[]): CommandExecutor {
       return { ok: false, detail: `no ${req.protocol} child is configured on this gateway` };
     }
     const probe = await child.check();
+    // Reachable is all that was verified: this executor performs nothing, and says so (outcome "probe_only"), so neither the caller nor the audit log believes an order was carried out.
     return probe.reachable
-      ? { ok: true }
+      ? { ok: true, executed: false }
       : { ok: false, detail: probe.error ?? `${child.name} is not reachable` };
   };
 }
@@ -130,7 +132,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   // One dispatcher per app instance (not per request) - backpressure
   // only means anything if concurrent requests share the same in-flight
   // counter.
-  const dispatcher = options.commandDispatcher ?? new CommandDispatcher({ executor: buildCommandExecutor(buildChildren()) });
+  const dispatcher = options.commandDispatcher ?? new CommandDispatcher({ executor: buildCommandExecutor(buildChildren()), mqttPublishTopics: resolveMqttPublishTopics() });
   const commandAuthConfig = resolveCommandAuthConfig();
   const commandAuthMiddleware = commandAuthConfig ? [requireCommandAuth(commandAuthConfig)] : [];
   const rateLimiter = options.rateLimiter ?? new CommandRateLimiter();
@@ -177,6 +179,7 @@ export function buildApp(options: BuildAppOptions = {}) {
 
   const OUTCOME_HTTP_STATUS: Record<string, number> = {
     accepted: 200,
+    probe_only: 501,
     rejected_unauthorized: 403,
     rejected_backpressure: 429,
     timeout: 504,
@@ -225,7 +228,19 @@ export function buildApp(options: BuildAppOptions = {}) {
   return app;
 }
 
+/** The topics an MQTT publish may target: GATEWAY_MQTT_PUBLISH_TOPICS (comma-separated filters) or the gateway's own namespace. */
+function resolveMqttPublishTopics(env: NodeJS.ProcessEnv = process.env): readonly string[] {
+  const configured = (env.GATEWAY_MQTT_PUBLISH_TOPICS ?? "").split(",").map(item => item.trim()).filter(Boolean);
+  return configured.length > 0 ? configured : DEFAULT_MQTT_PUBLISH_TOPICS;
+}
+
 function main() {
+  const problem = commandAuthStartupProblem();
+  if (problem) {
+    console.error(`[HYDRA-UMC-GATEWAY-INDUSTRIAL] refusing to start in production: ${problem}`);
+    console.error("[HYDRA-UMC-GATEWAY-INDUSTRIAL] set GATEWAY_JWT_SECRET, or GATEWAY_ALLOW_ANONYMOUS=1 for an open lab gateway.");
+    process.exit(1);
+  }
   const app = buildApp();
   // Real TLS/mTLS, opt-in via real certificate files - see src/tls.ts's
   // own header comment for why this exists (this project's own README
@@ -238,7 +253,7 @@ function main() {
   const commandAuthConfigForBanner = resolveCommandAuthConfig();
   const rateLimitConfigForBanner = resolveRateLimitConfig();
 
-  server.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, process.env.GATEWAY_BIND_HOST?.trim() || "0.0.0.0", () => {
     console.log("=================================================");
     console.log(` HYDRA-UMC-GATEWAY-INDUSTRIAL v${readPackageVersion()}`);
     console.log(" ROLE: Industry 4.0 interoperability bridge for factory standards");
