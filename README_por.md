@@ -26,13 +26,13 @@ Funciona como um tradutor multiprotocolo, expondo os estados internos dos robôs
 ### Funcionalidades principais:
 * 🌐 **Suporte multipadrão:** Interfaces OPC-UA, MQTT e MTConnect integradas.
 * 🛡️ **Segurança industrial:** TLS 1.2+ real na própria API HTTP deste gateway, opcional através de ficheiros de certificado reais (`TLS_CERT_PATH`/`TLS_KEY_PATH`); acrescentar `TLS_CLIENT_CA_PATH` converte-o em TLS mútuo real, recusando o próprio handshake TLS a qualquer chamador sem um certificado assinado por essa CA - veja [`docs/API.md`](docs/API.md#security-tls--mutual-tls).
-* 🔄 **Mapeamento de estado:** Tradução em tempo real do estado JSON interno da Hydra para espaços de endereços industriais padronizados.
+* 🔄 **Mapeamento de estado:** Tradução em tempo real do estado JSON interno da Hydra para espaços de endereços industriais padronizados. *(planeado: hoje o gateway agrega a acessibilidade dos três serviços e não traduz dados)*
 * ⚡ **Alta fiabilidade:** Ponte leve dedicada otimizada para funcionamento industrial 24/7.
 * 🚦 **Real v0 - Lista de comandos permitidos + contrapressão:** `POST /command` é controlado por uma lista de permissões por protocolo (negar por defeito), um limite de concorrência e um tempo-limite reais - veja a "Verificação de honestidade" abaixo para saber exatamente o que se impõe hoje.
 * 🔐 **Autenticação do chamador em cada comando:** `POST /command` aceita também um `GATEWAY_JWT_SECRET` opcional - uma vez definido, cada pedido precisa de um `Authorization: Bearer <token>` válido (HS256, algoritmo fixado explicitamente) ou é rejeitado antes de chegar à lista de permissões. Independente do mTLS: isto identifica QUEM emitiu o comando, o mTLS (quando configurado) identifica o par TLS.
-* 🧱 **Política de produção e resultados honestos:** Um arranque em produção (`NODE_ENV=production`, que o compose define) recusa-se a funcionar sem um `GATEWAY_JWT_SECRET` real (32+ caracteres, não de exemplo; `GATEWAY_ALLOW_ANONYMOUS=1` diz de propósito que é um gateway aberto de laboratório). O executor por defeito só sonda o filho, pelo que responde `501` com o resultado `probe_only` (não se executou nada) em vez de `accepted`; um `publish` MQTT só pode ir para o espaço próprio do gateway (`hydra/gateway/#`, ou `GATEWAY_MQTT_PUBLISH_TOPICS`) e nunca para um tópico de comandos de uma ponte (`hydra/bridges/...`) nem para `$SYS`; `GATEWAY_BIND_HOST` escolhe a interface. *(implementado)*
+* 🧱 **Política de produção e resultados honestos:** O gateway recusa-se a arrancar, em qualquer ambiente (o compose define `NODE_ENV=production`), sem um `GATEWAY_JWT_SECRET` real (32+ caracteres, não de exemplo; `GATEWAY_ALLOW_ANONYMOUS=1` diz de propósito que é um gateway aberto de laboratório). O executor por defeito só sonda o filho, pelo que responde `501` com o resultado `probe_only` (não se executou nada) em vez de `accepted`; um `publish` MQTT só pode ir para o espaço próprio do gateway (`hydra/gateway/#`, ou `GATEWAY_MQTT_PUBLISH_TOPICS`) e nunca para um tópico de comandos de uma ponte (`hydra/bridges/...`) nem para `$SYS`; `GATEWAY_BIND_HOST` escolhe a interface. Os tokens têm de trazer `exp` e `sub` (e `aud` se `GATEWAY_JWT_AUDIENCE` estiver definido); o gateway escuta em 127.0.0.1, salvo se `GATEWAY_BIND_HOST` disser outra coisa. *(implementado)*
 
-**Verificação de honestidade - o que realmente funciona hoje:** `POST /command { protocol, operation, target }` é real: a operação tem de estar explicitamente permitida para o seu protocolo (`403` se não - a v0 só permite operações de tipo leitura/publicação, nada que escreva num PLC em funcionamento), não correm mais do que um número limitado de comandos ao mesmo tempo (`429` acima disso), e um comando que não termina a tempo é reportado como expirado (`504`) em vez de ficar pendurado. O caminho de execução por defeito reutiliza as sondas de acessibilidade reais deste projeto - honesto quanto a ficar aquém de uma escrita real ao nível do protocolo OPC-UA/MQTT/MTConnect, já que nenhum dos três filhos expõe ainda uma API de comandos real. O `GATEWAY_JWT_SECRET` é opcional - sem ele, `POST /command` não tem qualquer autenticação do chamador para além da própria lista de permissões, e o cartaz de arranque di-lo em texto simples. Veja o `CHANGELOG.md` para saber exatamente o que foi entregue.
+**Verificação de honestidade - o que realmente funciona hoje:** `POST /command { protocol, operation, target }` é real: a operação tem de estar explicitamente permitida para o seu protocolo (`403` se não - a v0 só permite operações de tipo leitura/publicação, nada que escreva num PLC em funcionamento), não correm mais do que um número limitado de comandos ao mesmo tempo (`429` acima disso), e um comando que não termina a tempo é reportado como expirado (`504`) em vez de ficar pendurado. O caminho de execução por defeito reutiliza as sondas de acessibilidade reais deste projeto - honesto quanto a ficar aquém de uma escrita real ao nível do protocolo OPC-UA/MQTT/MTConnect, já que nenhum dos três filhos expõe ainda uma API de comandos real. Sem `GATEWAY_JWT_SECRET` o gateway recusa-se a arrancar, a menos que `GATEWAY_ALLOW_ANONYMOUS=1` diga de propósito que é um gateway aberto de laboratório: nesse caso `POST /command` não tem qualquer autenticação do chamador para além da própria lista de permissões, e o cartaz de arranque indica-o em texto simples. Veja o `CHANGELOG.md` para saber exatamente o que foi entregue.
 
 ---
 
@@ -76,7 +76,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   └── server.ts         # Aplicação Express: GET /status, POST /command
 ├── tests/               # Suite vitest real (sondas, servidor, comandos)
 ├── docs/               # Documentação e referência de mapeamento
-├── build/               # Saída compilada (npm run build)
+├── dist/               # Saída compilada (npm run build)
 ├── images/             # Multimédia e diagramas
 ├── scripts/            # Scripts utilitários (bump-version.mjs)
 ├── tools/
@@ -111,7 +111,7 @@ Isto inicia os 4 serviços nas mesmas portas a que cada um já se liga isoladame
 ## 🛠️ AMBIENTE DE DESENVOLVIMENTO
 
 ### Requisitos
-- [Node.js](https://nodejs.org/) (recomendada a v18 ou superior)
+- [Node.js](https://nodejs.org/) (recomendada a v20 ou superior)
 - npm
 
 ### Instalação

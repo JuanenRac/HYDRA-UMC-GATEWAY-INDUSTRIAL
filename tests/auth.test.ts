@@ -66,7 +66,7 @@ describe("HYDRA-UMC-GATEWAY-INDUSTRIAL POST /command (real JWT caller auth, opt-
   });
 
   it("accepts a real HS256 token signed with the configured secret", async () => {
-    const token = jwt.sign({ sub: "technician-1" }, SECRET, { algorithm: "HS256" });
+    const token = jwt.sign({ sub: "technician-1" }, SECRET, { algorithm: "HS256", expiresIn: "1h" });
     const res = await request(buildAcceptingApp())
       .post("/command")
       .set("Authorization", `Bearer ${token}`)
@@ -81,10 +81,15 @@ import { commandAuthStartupProblem } from "../src/auth.js";
 
 describe("commandAuthStartupProblem (a production start must not leave POST /command open)", () => {
   const STRONG = "f3a9c07b1d5e48a2b6c1e90d7a4f3b28c5d6e7f8a9b0c1d2";
-  it("is silent outside production and for a good secret", () => {
-    expect(commandAuthStartupProblem({})).toBeNull();
-    expect(commandAuthStartupProblem({ NODE_ENV: "development" })).toBeNull();
+  it("is silent for a good secret, in any environment", () => {
+    expect(commandAuthStartupProblem({ GATEWAY_JWT_SECRET: STRONG })).toBeNull();
+    expect(commandAuthStartupProblem({ NODE_ENV: "development", GATEWAY_JWT_SECRET: STRONG })).toBeNull();
     expect(commandAuthStartupProblem({ NODE_ENV: "production", GATEWAY_JWT_SECRET: STRONG })).toBeNull();
+  });
+  it("refuses to start without a secret outside production too (anonymous only on purpose)", () => {
+    expect(commandAuthStartupProblem({})).toMatch(/not set/);
+    expect(commandAuthStartupProblem({ NODE_ENV: "development" })).toMatch(/not set/);
+    expect(commandAuthStartupProblem({ GATEWAY_ALLOW_ANONYMOUS: "1" })).toBeNull();
   });
   it("refuses a missing, example, short or repetitive secret in production", () => {
     expect(commandAuthStartupProblem({ NODE_ENV: "production" })).toMatch(/not set/);

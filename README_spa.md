@@ -26,11 +26,11 @@ Actúa como un traductor multi-protocolo, exponiendo los estados robóticos inte
 ### Características Clave:
 * 🌐 **Soporte Multi-Estándar:** Interfaces integradas de OPC-UA, MQTT y MTConnect.
 * 🛡️ **Seguridad Industrial:** TLS 1.2+ real en la propia API HTTP de este gateway, opcional mediante archivos de certificado reales (`TLS_CERT_PATH`/`TLS_KEY_PATH`); añadir `TLS_CLIENT_CA_PATH` lo convierte en TLS mutuo real, rechazando el propio handshake TLS para cualquier llamador sin un certificado firmado por esa CA - ver [`docs/API.md`](docs/API.md#security-tls--mutual-tls).
-* 🔄 **Mapeo de Estado:** Traducción en tiempo real del estado JSON interno de Hydra en espacios de direcciones industriales estandarizados.
+* 🔄 **Mapeo de Estado:** Traducción en tiempo real del estado JSON interno de Hydra en espacios de direcciones industriales estandarizados. *(planificado: hoy el gateway agrega la disponibilidad de los tres servicios y no traduce datos)*
 * ⚡ **Alta Fiabilidad:** Puente ligero dedicado optimizado para un tiempo de actividad industrial 24/7.
 * 🚦 **Real v0 - Allowlist de Comandos + Backpressure:** `POST /command` está protegido por una allowlist por defecto-denegado por protocolo, un límite de concurrencia acotado y un timeout real - ver "Comprobación de honestidad" abajo para lo que se aplica exactamente hoy.
 * 🔐 **Autenticación por Llamador en Cada Comando:** `POST /command` admite también `GATEWAY_JWT_SECRET` de forma opcional - una vez configurado, cada petición necesita un `Authorization: Bearer <token>` válido (HS256, algoritmo fijado explícitamente) o se rechaza antes de llegar a la allowlist. Independiente de mTLS: esto identifica QUIÉN emitió el comando, mTLS (si está configurado) identifica al peer TLS.
-* 🧱 **Política de producción y resultados honestos:** Un arranque en producción (`NODE_ENV=production`, que fija el compose) se niega a funcionar sin un `GATEWAY_JWT_SECRET` real (32+ caracteres, no de ejemplo; `GATEWAY_ALLOW_ANONYMOUS=1` dice a propósito que es un gateway abierto de laboratorio). El ejecutor por defecto solo sondea al hijo, así que responde `501` con resultado `probe_only` (no se ejecutó nada) en vez de `accepted`; un `publish` MQTT solo puede ir al espacio propio del gateway (`hydra/gateway/#`, o `GATEWAY_MQTT_PUBLISH_TOPICS`) y nunca a un tema de órdenes de un bridge (`hydra/bridges/...`) ni a `$SYS`; `GATEWAY_BIND_HOST` elige la interfaz. *(implementado)*
+* 🧱 **Política de producción y resultados honestos:** El gateway se niega a arrancar, en cualquier entorno (el compose fija `NODE_ENV=production`), sin un `GATEWAY_JWT_SECRET` real (32+ caracteres, no de ejemplo; `GATEWAY_ALLOW_ANONYMOUS=1` dice a propósito que es un gateway abierto de laboratorio). El ejecutor por defecto solo sondea al hijo, así que responde `501` con resultado `probe_only` (no se ejecutó nada) en vez de `accepted`; un `publish` MQTT solo puede ir al espacio propio del gateway (`hydra/gateway/#`, o `GATEWAY_MQTT_PUBLISH_TOPICS`) y nunca a un tema de órdenes de un bridge (`hydra/bridges/...`) ni a `$SYS`; `GATEWAY_BIND_HOST` elige la interfaz. Los tokens deben llevar `exp` y `sub` (y `aud` si se define `GATEWAY_JWT_AUDIENCE`); el gateway escucha en 127.0.0.1 salvo que `GATEWAY_BIND_HOST` diga otra cosa. *(implementado)*
 
 **Comprobación de honestidad - qué funciona hoy de verdad:** `POST /command { protocol, operation, target }` es real: la operación debe estar explícitamente en la allowlist de su protocolo (`403` si no lo está - v0 solo permite operaciones de lectura/publicación, nada que escriba en un PLC en vivo), no se ejecuta más de un número acotado de comandos a la vez (`429` por encima de eso), y un comando que no se resuelve a tiempo se reporta como agotado (`504`) en vez de dejarse colgado. La ruta de ejecución por defecto reutiliza las sondas de alcanzabilidad reales de este proyecto - honesto en que se queda corto de una escritura real a nivel de protocolo OPC-UA/MQTT/MTConnect, ya que ninguno de los tres hijos expone todavía una API de comandos real tampoco. Ver `CHANGELOG.md` para lo entregado exactamente.
 
@@ -76,7 +76,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   └── server.ts         # App Express: GET /status, POST /command
 ├── tests/               # Suite vitest real (probes, server, command)
 ├── docs/               # Documentación y referencia de mapeo
-├── build/               # Salida compilada (npm run build)
+├── dist/               # Salida compilada (npm run build)
 ├── images/             # Medios y diagramas
 ├── scripts/            # Scripts de utilidad (bump-version.mjs)
 ├── tools/
@@ -122,7 +122,7 @@ la versión propia del Gateway y qué hijos espera poder alcanzar.
 ## 🛠️ ENTORNO DE DESARROLLO
 
 ### Requisitos
-- [Node.js](https://nodejs.org/) (v18 o superior recomendado)
+- [Node.js](https://nodejs.org/) (v20 o superior recomendado)
 - npm
 
 ### Instalación

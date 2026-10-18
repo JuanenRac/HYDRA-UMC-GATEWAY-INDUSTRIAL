@@ -38,6 +38,16 @@
 
 export type Protocol = "OPC-UA" | "MQTT" | "MTConnect";
 
+/** The closed list of protocols a command may name; anything else is a malformed request, never a lookup key. */
+export const PROTOCOLS: readonly Protocol[] = ["OPC-UA", "MQTT", "MTConnect"];
+
+export function isProtocol(value: unknown): value is Protocol {
+  return typeof value === "string" && (PROTOCOLS as readonly string[]).includes(value);
+}
+
+/** The longest response budget a caller may ask for. Node clamps timers above 2^31-1 ms to 1 ms, and a command that holds a concurrency slot for hours is not a command. */
+export const MAX_COMMAND_TIMEOUT_MS = 30_000;
+
 export interface CommandRequest {
   protocol: Protocol;
   operation: string;
@@ -60,7 +70,7 @@ export type CommandExecutor = (req: CommandRequest) => Promise<{ ok: boolean; de
 // The topics an MQTT "publish" may target when nothing else is configured: a namespace of the gateway's own. The bridges' own command topics (hydra/bridges/...) are never
 // reachable through the gateway, whatever is configured, because a free publish there would be an unauthenticated order to a machine.
 export const DEFAULT_MQTT_PUBLISH_TOPICS: readonly string[] = ["hydra/gateway/#"];
-const NEVER_PUBLISH_PREFIXES: readonly string[] = ["hydra/bridges/", "$SYS/", "$"];
+const NEVER_PUBLISH_PREFIXES: readonly string[] = ["hydra/bridges/", "vda5050/", "$SYS/", "$"];
 
 /** MQTT topic-vs-filter match for a concrete topic (`+` one level, `#` the rest). */
 export function mqttTopicMatches(topic: string, filter: string): boolean {
@@ -153,6 +163,8 @@ export class CommandDispatcher {
   }
 
   isAuthorized(protocol: Protocol, operation: string): boolean {
+    // Own properties only: "constructor" or "__proto__" must never resolve to an inherited object.
+    if (!Object.hasOwn(this.allowlist, protocol)) return false;
     return this.allowlist[protocol]?.has(operation) ?? false;
   }
 

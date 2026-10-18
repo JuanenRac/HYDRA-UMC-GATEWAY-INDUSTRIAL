@@ -18,13 +18,19 @@
 # `context: ../...` paths below
 # depend on that layout, not on any monorepo restructuring.
 #
-# Every service already prints its own name/version/role/port to stdout
-# on real startup (see each project's own src/server.ts) - `docker compose
-# logs -f` is enough to confirm the whole Gateway is actually up, no
-# separate healthcheck tooling required for this first real integration
-# pass. Per-child HTTP/TCP reachability probes from the gateway's own
-# GET /status require protocol-specific integration work and are not
-# represented as current functionality.
+# Every service prints its own name/version/role/port to stdout on startup
+# (`docker compose logs -f`), the gateway answers GET /health (is the process
+# up) and GET /status (a real TCP/HTTP reachability probe of each child), and
+# each image has a HEALTHCHECK of its own.
+#
+# Optional settings are passed through from the environment or a .env file
+# next to this one (see .env.example); an unset one reaches the service as an
+# empty value, which every service treats as "not configured". The robot
+# roster source of the OPC-UA server and the MTConnect adapter is the
+# HYDRA-UMC-SERVER: from inside a container that is not "localhost".
+#
+# A recreated container keeps its OPC-UA certificate and the gateway's audit
+# trail in named volumes.
 
 services:
   gateway-industrial:
@@ -37,6 +43,16 @@ services:
       - NODE_ENV=production
       # A production gateway refuses to start without a real secret (see .env.example): POST /command is signed with it.
       - GATEWAY_JWT_SECRET=${GATEWAY_JWT_SECRET:?set GATEWAY_JWT_SECRET in .env (see .env.example)}
+      # Set to make the gateway also require this audience in the token (keeps a token minted for another service out).
+      - GATEWAY_JWT_AUDIENCE=${GATEWAY_JWT_AUDIENCE:-}
+    volumes:
+      - gateway-logs:/app/logs
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     depends_on:
       - opcua-server
       - mqtt-broker
@@ -51,6 +67,20 @@ services:
       - "4840:4840"
     environment:
       - NODE_ENV=production
+      # The one account that may write SwarmOnline and MaintenanceMode; unset = nobody can.
+      - OPCUA_ADMIN_USERNAME=${OPCUA_ADMIN_USERNAME:-}
+      - OPCUA_ADMIN_PASSWORD=${OPCUA_ADMIN_PASSWORD:-}
+      # 1 accepts every client certificate (a lab); otherwise move each client's certificate from rejected/ to trusted/certs/ in the volume.
+      - OPCUA_AUTO_ACCEPT=${OPCUA_AUTO_ACCEPT:-}
+      # The name your SCADA resolves, when it is not the container's own.
+      - OPCUA_ALTERNATE_HOSTNAME=${OPCUA_ALTERNATE_HOSTNAME:-}
+      # The robot roster source (HYDRA-UMC-SERVER) and a credential for it.
+      - HYDRA_SERVER_URL=${HYDRA_SERVER_URL:-}
+      - HYDRA_SERVER_TOKEN=${HYDRA_SERVER_TOKEN:-}
+      - HYDRA_SERVER_USER=${HYDRA_SERVER_USER:-}
+      - HYDRA_SERVER_PASSWORD=${HYDRA_SERVER_PASSWORD:-}
+    volumes:
+      - opcua-pki:/data/pki
     restart: unless-stopped
 
   mqtt-broker:
@@ -74,4 +104,14 @@ services:
       - "5000:5000"
     environment:
       - NODE_ENV=production
+      # The machine source (HYDRA-UMC-SERVER) and a credential for it. Without it every DataItem is UNAVAILABLE.
+      - HYDRA_UMC_SERVER_URL=${HYDRA_UMC_SERVER_URL:-}
+      - HYDRA_UMC_SERVER_TOKEN=${HYDRA_UMC_SERVER_TOKEN:-}
+      - HYDRA_UMC_SERVER_USER=${HYDRA_UMC_SERVER_USER:-}
+      - HYDRA_UMC_SERVER_PASSWORD=${HYDRA_UMC_SERVER_PASSWORD:-}
+      - HYDRA_UMC_ROBOT_ID=${HYDRA_UMC_ROBOT_ID:-}
     restart: unless-stopped
+
+volumes:
+  gateway-logs:
+  opcua-pki:

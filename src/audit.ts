@@ -41,6 +41,15 @@ export interface CommandAuditEntry {
   outcome: string;
   reason?: string;
   httpStatus: number;
+  /** The peer address, so an attempt without a token can still be attributed to a host. */
+  remoteAddress?: string;
+  userAgent?: string;
+  /** The subject of the client certificate when the connection is mutual TLS. */
+  clientCertSubject?: string;
+  /** Milliseconds from the request reaching the audit hook to the response finishing (or the connection closing). */
+  durationMs?: number;
+  /** True when the client went away before the response finished. */
+  aborted?: boolean;
 }
 
 export interface CommandAuditLogger {
@@ -73,6 +82,8 @@ export class FileCommandAuditLogger implements CommandAuditLogger {
   // its first command - neither should touch disk or hold a file handle
   // for a log that may never receive an entry.
   private stream: fs.WriteStream | null = null;
+  // Bytes written to the current file, tracked in memory so a record never has to stat() the file (a blocking call on the event loop).
+  private bytesWritten = 0;
 
   constructor(filePath: string = resolveAuditLogPath()) {
     this.filePath = filePath;
@@ -87,19 +98,18 @@ export class FileCommandAuditLogger implements CommandAuditLogger {
   private openStream(): fs.WriteStream {
     const dir = path.dirname(this.filePath);
     if (dir && dir !== ".") fs.mkdirSync(dir, { recursive: true });
+    try {
+      this.bytesWritten = fs.statSync(this.filePath).size;
+    } catch {
+      this.bytesWritten = 0;
+    }
     const stream = fs.createWriteStream(this.filePath, { flags: "a" });
     stream.on("error", (err) => console.error("[commandAudit] log stream error", err));
     return stream;
   }
 
   private rotateIfNeeded(): void {
-    let size = 0;
-    try {
-      size = fs.statSync(this.filePath).size;
-    } catch {
-      return; // file doesn't exist yet (fresh install/first entry) - nothing to rotate
-    }
-    if (size < MAX_AUDIT_LOG_BYTES) return;
+    if (this.bytesWritten < MAX_AUDIT_LOG_BYTES) return;
 
     this.stream?.end();
     try {
@@ -119,6 +129,7 @@ export class FileCommandAuditLogger implements CommandAuditLogger {
     this.rotateIfNeeded();
     const line = JSON.stringify({ timestamp: new Date().toISOString(), ...entry });
     this.ensureStream().write(line + "\n");
+    this.bytesWritten += Buffer.byteLength(line) + 1;
   }
 }
 
@@ -131,6 +142,15 @@ export class InMemoryCommandAuditLogger implements CommandAuditLogger {
   record(entry: Omit<CommandAuditEntry, "timestamp">): void {
     this.entries.push({ timestamp: new Date().toISOString(), ...entry });
   }
+}
+
+/** The mutual-TLS client certificate subject, when the connection has one. */
+function clientCertSubject(req: Request): string | undefined {
+  const socket = req.socket as unknown as { getPeerCertificate?: (detailed?: boolean) => { subject?: Record<string, string> } | null };
+  if (typeof socket.getPeerCertificate !== "function") return undefined;
+  const subject = socket.getPeerCertificate(false)?.subject;
+  if (!subject || Object.keys(subject).length === 0) return undefined;
+  return Object.entries(subject).map(([key, value]) => `${key}=${value}`).join(", ");
 }
 
 // Wired as the FIRST middleware on POST /command (server.ts), before rate
@@ -146,7 +166,12 @@ export class InMemoryCommandAuditLogger implements CommandAuditLogger {
 // an invalid token and an allowlist rejection).
 export function recordCommandAttempt(logger: CommandAuditLogger) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    res.on("finish", () => {
+    const startedAt = Date.now();
+    let recorded = false;
+    // "finish" fires when the response was sent; "close" also fires when the client hung up first, which "finish" alone would never report.
+    const write = (aborted: boolean) => {
+      if (recorded) return;
+      recorded = true;
       const body = (req.body ?? {}) as Record<string, unknown>;
       const outcome = typeof res.locals.auditOutcome === "string" ? res.locals.auditOutcome : `http_${res.statusCode}`;
       const reason = typeof res.locals.auditReason === "string" ? res.locals.auditReason : undefined;
@@ -158,8 +183,15 @@ export function recordCommandAttempt(logger: CommandAuditLogger) {
         outcome,
         ...(reason !== undefined ? { reason } : {}),
         httpStatus: res.statusCode,
+        ...(req.socket?.remoteAddress ? { remoteAddress: req.socket.remoteAddress } : {}),
+        ...(typeof req.headers["user-agent"] === "string" ? { userAgent: req.headers["user-agent"].slice(0, 200) } : {}),
+        ...(clientCertSubject(req) ? { clientCertSubject: clientCertSubject(req) } : {}),
+        durationMs: Date.now() - startedAt,
+        ...(aborted ? { aborted: true } : {}),
       });
-    });
+    };
+    res.on("finish", () => write(false));
+    res.on("close", () => write(!res.writableFinished));
     next();
   };
 }

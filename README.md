@@ -26,13 +26,13 @@ It acts as a multi-protocol translator, exposing internal robotic states and too
 ### Key Features:
 * 🌐 **Multi-Standard Support:** Integrated OPC-UA, MQTT, and MTConnect interfaces.
 * 🛡️ **Industrial Security:** real TLS 1.2+ on this gateway's own HTTP API, opt-in via real certificate files (`TLS_CERT_PATH`/`TLS_KEY_PATH`); adding `TLS_CLIENT_CA_PATH` turns it into real mutual TLS, refusing the TLS handshake itself for any caller without a certificate signed by that CA - see [`docs/API.md`](docs/API.md#security-tls--mutual-tls).
-* 🔄 **State Mapping:** Real-time translation of Hydra's internal JSON state into standardized industrial address spaces.
+* 🔄 **State Mapping:** Real-time translation of Hydra's internal JSON state into standardized industrial address spaces. *(planned - today the gateway aggregates the reachability of the three services and translates no data)*
 * ⚡ **High Reliability:** Dedicated lightweight bridge optimized for 24/7 industrial uptime.
 * 🚦 **Real v0 - Command Allowlist + Backpressure:** `POST /command` is gated by a default-deny allowlist per protocol, a bounded concurrency limit, and a real timeout - see "Honesty check" below for exactly what's enforced today.
 * 🔐 **Per-Command Caller Authentication:** `POST /command` also accepts an opt-in `GATEWAY_JWT_SECRET` - once set, every request needs a valid `Authorization: Bearer <token>` (HS256, algorithm pinned explicitly) or it is rejected before it ever reaches the allowlist. Independent of mTLS: this identifies WHO issued the command, mTLS (when configured) identifies the TLS peer.
-* 🧱 **Production Policy and Honest Outcomes:** A production start (`NODE_ENV=production`, which the compose file sets) refuses to run without a real `GATEWAY_JWT_SECRET` (32+ characters, not an example; `GATEWAY_ALLOW_ANONYMOUS=1` says on purpose that it is an open lab gateway). The default executor only probes the child, so it answers `501` with outcome `probe_only` (nothing was executed) instead of `accepted`; an MQTT `publish` may only target the gateway's own namespace (`hydra/gateway/#`, or `GATEWAY_MQTT_PUBLISH_TOPICS`) and never a bridge command topic (`hydra/bridges/...`) or `$SYS`; `GATEWAY_BIND_HOST` chooses the interface. *(implemented)*
+* 🧱 **Production Policy and Honest Outcomes:** The gateway refuses to start, in any environment (the compose file sets `NODE_ENV=production`), without a real `GATEWAY_JWT_SECRET` (32+ characters, not an example; `GATEWAY_ALLOW_ANONYMOUS=1` says on purpose that it is an open lab gateway). The default executor only probes the child, so it answers `501` with outcome `probe_only` (nothing was executed) instead of `accepted`; an MQTT `publish` may only target the gateway's own namespace (`hydra/gateway/#`, or `GATEWAY_MQTT_PUBLISH_TOPICS`) and never a bridge command topic (`hydra/bridges/...`) or `$SYS`; `GATEWAY_BIND_HOST` chooses the interface. A token must carry `exp` and `sub` (and `aud` when `GATEWAY_JWT_AUDIENCE` is set); the gateway listens on 127.0.0.1 unless `GATEWAY_BIND_HOST` says otherwise. *(implemented)*
 
-**Honesty check - what actually runs today:** `POST /command { protocol, operation, target }` is real: the operation must be explicitly allowlisted for its protocol (`403` if not - v0 only allows read-like/publish operations, nothing that writes to a live PLC), no more than a bounded number of commands run at once (`429` beyond that), and a command that doesn't resolve in time is reported as timed out (`504`) rather than left hanging. The default execution path reuses this project's own real reachability probes - honest that it stops short of an actual OPC-UA/MQTT/MTConnect protocol-level write, since none of the three children expose a real command API yet either. `GATEWAY_JWT_SECRET` is opt-in - unset, `POST /command` has no caller authentication at all beyond the allowlist itself, and the startup banner says so in plain text. See `CHANGELOG.md` for exactly what shipped.
+**Honesty check - what actually runs today:** `POST /command { protocol, operation, target }` is real: the operation must be explicitly allowlisted for its protocol (`403` if not - v0 only allows read-like/publish operations, nothing that writes to a live PLC), no more than a bounded number of commands run at once (`429` beyond that), and a command that doesn't resolve in time is reported as timed out (`504`) rather than left hanging. The default execution path reuses this project's own real reachability probes - honest that it stops short of an actual OPC-UA/MQTT/MTConnect protocol-level write, since none of the three children expose a real command API yet either. Without `GATEWAY_JWT_SECRET` the gateway refuses to start, unless `GATEWAY_ALLOW_ANONYMOUS=1` says on purpose that this is an open lab gateway: then `POST /command` has no caller authentication beyond the allowlist itself, and the startup banner says so in plain text. See `CHANGELOG.md` for exactly what shipped.
 
 ---
 
@@ -76,7 +76,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   └── server.ts         # Express app: GET /status, POST /command
 ├── tests/               # Real vitest suite (probes, server, command)
 ├── docs/               # Documentation and mapping reference
-├── build/               # Compiled output (npm run build)
+├── dist/               # Compiled output (npm run build)
 ├── images/             # Media and diagrams
 ├── scripts/            # Utility scripts (bump-version.mjs)
 ├── tools/
@@ -122,7 +122,7 @@ Gateway's own version and which children it expects to reach.
 ## 🛠️ DEVELOPMENT ENVIRONMENT
 
 ### Requirements
-- [Node.js](https://nodejs.org/) (v18 or higher recommended)
+- [Node.js](https://nodejs.org/) (v20 or higher recommended)
 - npm
 
 ### Installation

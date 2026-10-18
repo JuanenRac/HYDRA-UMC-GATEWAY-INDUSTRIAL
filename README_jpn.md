@@ -32,11 +32,11 @@ MTConnect の XML ストリームとして公開し、Hydra スウォームが�
 ### 主な機能：
 * 🌐 **マルチスタンダード対応：** 統合された OPC-UA、MQTT、MTConnect インターフェース。
 * 🛡️ **産業用セキュリティ：** このゲートウェイ自身の HTTP API 上で動作する実際の TLS 1.2+ - 実際の証明書ファイル（`TLS_CERT_PATH`/`TLS_KEY_PATH`）によるオプトイン方式。`TLS_CLIENT_CA_PATH` を追加すると実際の相互 TLS になり、その CA が署名した証明書を提示できない呼び出し元は TLS ハンドシェイク自体が拒否されます - 詳細は [`docs/API.md`](docs/API.md#security-tls--mutual-tls) を参照。
-* 🔄 **状態マッピング：** Hydra 内部の JSON 状態を標準化された産業用アドレス空間へリアルタイムに変換。
+* 🔄 **状態マッピング：** Hydra 内部の JSON 状態を標準化された産業用アドレス空間へリアルタイムに変換。 *（計画中：現在のゲートウェイは 3 つのサービスの到達性を集約するだけで、データの変換は行いません）*
 * ⚡ **高信頼性：** 24 時間 365 日の産業用稼働に最適化された専用の軽量ブリッジ。
 * 🚦 **実装済み v0 —— コマンドアローリスト + バックプレッシャー：** `POST /command` は、プロトコルごとのデフォルト拒否アローリスト、上限付きの同時実行制限、実際のタイムアウトによって保護されています——今日実際に強制されている内容の詳細は下記「正直な現状確認」を参照してください。
 * 🔐 **コマンドごとの呼び出し元認証：** `POST /command` はオプションの `GATEWAY_JWT_SECRET` にも対応しています——設定すると、すべてのリクエストに有効な `Authorization: Bearer <token>`（HS256、アルゴリズムは明示的に固定）が必要になり、なければアローリストに到達する前に拒否されます。mTLS とは独立しています：これは「誰がコマンドを発行したか」を識別し、mTLS（設定されている場合）は TLS ピアを識別します。
-* 🧱 **本番ポリシーと正直な結果：** 本番起動（compose が設定する `NODE_ENV=production`）では、本物の `GATEWAY_JWT_SECRET`（32 文字以上、例の値でないもの）がないと起動を拒否します（`GATEWAY_ALLOW_ANONYMOUS=1` は、意図的にオープンなラボ用ゲートウェイであることを示します）。デフォルトの executor は子サービスを疎通確認するだけなので、`accepted` ではなく結果 `probe_only`（何も実行されていない）として `501` を返します。MQTT の `publish` はゲートウェイ自身の名前空間（`hydra/gateway/#`、または `GATEWAY_MQTT_PUBLISH_TOPICS`）にのみ送れ、ブリッジのコマンドトピック（`hydra/bridges/...`）や `$SYS` には決して送れません。`GATEWAY_BIND_HOST` でバインドするインターフェースを選べます。*（実装済み）*
+* 🧱 **本番ポリシーと正直な結果：** ゲートウェイは、どの環境でも（compose は `NODE_ENV=production` を設定します）、本物の `GATEWAY_JWT_SECRET`（32 文字以上、例の値でないもの）がないと起動を拒否します（`GATEWAY_ALLOW_ANONYMOUS=1` は、意図的にオープンなラボ用ゲートウェイであることを示します）。デフォルトの executor は子サービスを疎通確認するだけなので、`accepted` ではなく結果 `probe_only`（何も実行されていない）として `501` を返します。MQTT の `publish` はゲートウェイ自身の名前空間（`hydra/gateway/#`、または `GATEWAY_MQTT_PUBLISH_TOPICS`）にのみ送れ、ブリッジのコマンドトピック（`hydra/bridges/...`）や `$SYS` には決して送れません。`GATEWAY_BIND_HOST` でバインドするインターフェースを選べます。トークンには `exp` と `sub`（`GATEWAY_JWT_AUDIENCE` を設定した場合は `aud` も）が必要で、`GATEWAY_BIND_HOST` で指定しない限り 127.0.0.1 で待ち受けます。*（実装済み）*
 
 **正直な現状確認 —— 今日実際に動くもの：** `POST /command { protocol, operation, target }` は実際に動作します——操作はそのプロトコルのアローリストに明示的に登録されている必要があり（そうでなければ `403`——v0 では読み取り/publish 系の操作のみを許可し、稼働中の PLC の状態を変更しうる操作は許可されていません）、上限を超える数のコマンドが同時に実行されることはなく（超えると `429`）、時間内に完了しなかったコマンドは無期限に保留されるのではなくタイムアウトとして報告されます（`504`）。デフォルトの実行経路は本プロジェクト自身の実際の到達可能性プローブを再利用しています——3 つの子サービスのいずれもまだ実際のコマンド API を公開していないため、実際のプロトコルレベルの書き込みにはまだ至っていないことを正直に示しています。実際に出荷済みの内容は `CHANGELOG.md` を参照してください。
 
@@ -82,7 +82,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   └── server.ts         # Express アプリ：GET /status、POST /command
 ├── tests/               # 実際の vitest スイート（probes、server、command）
 ├── docs/               # ドキュメントとマッピングリファレンス
-├── build/               # コンパイル出力（npm run build）
+├── dist/               # コンパイル出力（npm run build）
 ├── images/             # メディアと図表
 ├── scripts/            # ユーティリティスクリプト（bump-version.mjs）
 ├── tools/
@@ -131,7 +131,7 @@ OPC-UA は `4840`、MQTT は `1883`、MTConnect は `5000` です。
 ## 🛠️ 開発環境
 
 ### 必要条件
-- [Node.js](https://nodejs.org/)（v18 以上を推奨）
+- [Node.js](https://nodejs.org/)（v20 以上を推奨）
 - npm
 
 ### インストール

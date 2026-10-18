@@ -50,6 +50,9 @@ interface Bucket {
 // distinct callers than would ever make an unbounded Map a real problem
 // before the next prune runs.
 const PRUNE_THRESHOLD = 10_000;
+/** Hard ceiling on tracked callers: past it the oldest entries are dropped, so a flood of distinct addresses (easy with IPv6) cannot grow the map or slow every request. */
+export const MAX_TRACKED_KEYS = 20_000;
+const PRUNE_INTERVAL_MS = 1_000;
 
 /** Real per-key fixed-window rate limiter. A fresh instance owns its own
  * state (same per-app-instance reasoning as CommandDispatcher in
@@ -63,11 +66,28 @@ export class CommandRateLimiter {
     this.config = config;
   }
 
+  private lastPruneAt = 0;
+
   private pruneExpired(now: number): void {
     if (this.buckets.size < PRUNE_THRESHOLD) return;
-    for (const [key, bucket] of this.buckets) {
-      if (now - bucket.windowStart >= this.config.windowMs) this.buckets.delete(key);
+    // The scan is O(n): once per second at most, never on every request.
+    if (now - this.lastPruneAt >= PRUNE_INTERVAL_MS) {
+      this.lastPruneAt = now;
+      for (const [key, bucket] of this.buckets) {
+        if (now - bucket.windowStart >= this.config.windowMs) this.buckets.delete(key);
+      }
     }
+    // A Map iterates in insertion order, so the first key is the oldest: dropping it is O(1).
+    while (this.buckets.size >= MAX_TRACKED_KEYS) {
+      const oldest = this.buckets.keys().next();
+      if (oldest.done) break;
+      this.buckets.delete(oldest.value);
+    }
+  }
+
+  /** Number of callers currently tracked (for tests and diagnostics). */
+  get trackedKeys(): number {
+    return this.buckets.size;
   }
 
   /** A caller right at a window boundary can be admitted up to ~2x

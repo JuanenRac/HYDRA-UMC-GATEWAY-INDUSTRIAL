@@ -58,6 +58,8 @@ export async function probeHttp(url: string, timeoutMs = 2000): Promise<ProbeRes
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { signal: controller.signal });
+    // Only the status matters: release the connection instead of leaving the body stream open until GC.
+    await res.body?.cancel().catch(() => undefined);
     if (!res.ok) {
       return { reachable: false, error: `HTTP ${res.status}`, latencyMs: Date.now() - startedAt };
     }

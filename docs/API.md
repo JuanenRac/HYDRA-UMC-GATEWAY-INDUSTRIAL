@@ -59,21 +59,21 @@ exactly that reason.
 **Response** - always `200`:
 
 ```json
-{ "gateway": "HYDRA-UMC-GATEWAY-INDUSTRIAL", "version": "0.1.4", "status": "ok" }
+{ "gateway": "HYDRA-UMC-GATEWAY-INDUSTRIAL", "version": "X.Y.Z", "status": "ok" }
 ```
 
 ---
 
 ## `GET /status`
 
-Runs a **real network probe** against each child on every request - a TCP connect for OPC-UA/MQTT (`probeTcp()`), a real HTTP `GET` for MTConnect (`probeHttp()`), both in [`src/probes.ts`](../src/probes.ts). Nothing here is cached or a static list - kill a child process and the very next `/status` call reflects it.
+Runs a **real network probe** against each child - a TCP connect for OPC-UA/MQTT (`probeTcp()`), a real HTTP `GET` for MTConnect (`probeHttp()`), both in [`src/probes.ts`](../src/probes.ts). It is not a static list - kill a child process and the next probe round reflects it. Every probe round opens a connection to each child, so an answer is reused for `GATEWAY_STATUS_CACHE_MS` (default 1500 ms) and callers that arrive while a round is running share its answer: a loop of requests cannot turn into a connection flood against the plant services. The answer names the children's hosts and ports and the underlying error text, and the route has no authentication of its own: keep the port on a trusted network.
 
 **Response** - always `200`:
 
 ```json
 {
   "gateway": "HYDRA-UMC-GATEWAY-INDUSTRIAL",
-  "version": "0.1.4",
+  "version": "X.Y.Z",
   "allReachable": true,
   "children": [
     {
@@ -121,6 +121,7 @@ Runs a **real network probe** against each child on every request - a TCP connec
 |---|---|---|
 | `PORT` | `8000` | This server's own listen port. |
 | `PROBE_TIMEOUT_MS` | `2000` | Timeout for every child probe. |
+| `GATEWAY_STATUS_CACHE_MS` | `1500` | How long a `/status` answer is reused. |
 | `OPCUA_HOST` / `OPCUA_PORT` | `opcua-server` / `4840` | OPC-UA TCP probe target. |
 | `MQTT_HOST` / `MQTT_PORT` | `mqtt-broker` / `1883` | MQTT TCP probe target. |
 | `MTCONNECT_URL` | `http://mtconnect-adapter:5000/probe` | MTConnect HTTP probe target. |
@@ -154,7 +155,12 @@ publish there would be an unauthenticated order to a machine. A refused topic is
 
 | Var | Default | Affects |
 |---|---|---|
-| `GATEWAY_JWT_SECRET` | unset | Signs the `Authorization: Bearer` token `POST /command` requires. A `NODE_ENV=production` start (docker-compose sets it) refuses to run without a secret of at least 32 characters that is not an example value. |
-| `GATEWAY_ALLOW_ANONYMOUS` | unset | `1` states, on purpose, that a production gateway is an open lab gateway. |
+| `GATEWAY_JWT_SECRET` | unset | Signs the `Authorization: Bearer` token `POST /command` requires. The gateway refuses to start, in any environment, without a secret of at least 32 characters that is not an example value. A token needs `exp` (it must expire) and `sub` (who issued the command; it is the `caller` of the audit trail). |
+| `GATEWAY_JWT_AUDIENCE` | unset | When set, the token must also carry this `aud`. |
+| `GATEWAY_ALLOW_ANONYMOUS` | unset | `1` states, on purpose, that this is an open lab gateway: it starts without a secret and `POST /command` has no caller authentication beyond the allowlist. |
 | `GATEWAY_MQTT_PUBLISH_TOPICS` | `hydra/gateway/#` | Comma-separated MQTT filters an MQTT `publish` may target. |
-| `GATEWAY_BIND_HOST` | `0.0.0.0` | The interface the gateway binds to. |
+| `GATEWAY_BIND_HOST` | `127.0.0.1` | The interface the gateway binds to (the container image sets `0.0.0.0`). |
+
+**Request validation.** `protocol` must be exactly `OPC-UA`, `MQTT` or `MTConnect`, `operation` (at most 64 characters) and `target` (at most 512) must not be empty, and `timeoutMs`, when present, must be a positive number of at most 30000: anything else is a `400` with a JSON body (a malformed JSON body too, and an unexpected failure is a plain `500 {"error":"internal error"}`: an answer never carries a stack trace or a server path). The bridges' command topics (`hydra/bridges/...`, `vda5050/...`) and `$SYS` are never reachable through an MQTT `publish`.
+
+**Audit trail.** Every attempt is logged (`logs/command-audit.log`, rotated at 10 MiB) with its outcome, the caller, the peer address, the user agent, the duration and, on a mutual-TLS connection, the client certificate subject; an attempt whose client hung up before the answer is logged too, with `aborted: true`.

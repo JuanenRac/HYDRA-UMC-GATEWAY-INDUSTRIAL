@@ -24,6 +24,8 @@ import type { NextFunction, Request, Response } from "express";
 
 export interface CommandAuthConfig {
   secret: string;
+  /** When set (GATEWAY_JWT_AUDIENCE), a token must carry this `aud`, so a token minted for another service with the same secret is not accepted here. */
+  audience?: string;
 }
 
 // Returns null (never a partial config) when GATEWAY_JWT_SECRET is
@@ -33,18 +35,18 @@ export interface CommandAuthConfig {
 export function resolveCommandAuthConfig(env: NodeJS.ProcessEnv = process.env): CommandAuthConfig | null {
   const secret = env.GATEWAY_JWT_SECRET?.trim();
   if (!secret) return null;
-  return { secret };
+  const audience = env.GATEWAY_JWT_AUDIENCE?.trim();
+  return audience ? { secret, audience } : { secret };
 }
 
 export const MIN_SECRET_LENGTH = 32;
 const PLACEHOLDER = /(set[_ -]?locally|change[_ -]?me|replace[_ -]?me|your[_ -]?(secret|password)|example|placeholder|remove[_ -]?after)/i;
 
 /**
- * Why a production start must refuse (null when it may go on). POST /command can relay an operation to the plant floor: in production a missing, short or example secret means anybody
- * on the network can issue it (or forge a token), so the gateway does not start, unless GATEWAY_ALLOW_ANONYMOUS=1 says on purpose that this is an open lab gateway.
+ * Why the gateway must refuse to start (null when it may go on). POST /command can relay an operation to the plant floor: a missing, short or example secret means anybody
+ * who can reach the port can issue it (or forge a token), so the gateway does not start in ANY environment, unless GATEWAY_ALLOW_ANONYMOUS=1 says on purpose that this is an open lab gateway.
  */
 export function commandAuthStartupProblem(env: NodeJS.ProcessEnv = process.env): string | null {
-  if ((env.NODE_ENV ?? "").trim().toLowerCase() !== "production") return null;
   if ((env.GATEWAY_ALLOW_ANONYMOUS ?? "").trim() === "1") return null;
   const secret = env.GATEWAY_JWT_SECRET?.trim() ?? "";
   if (!secret) return "GATEWAY_JWT_SECRET is not set: POST /command would accept commands from anybody on the network";
@@ -74,8 +76,15 @@ export function requireCommandAuth(config: CommandAuthConfig) {
       return;
     }
     try {
-      const payload = jwt.verify(token, config.secret, { algorithms: ["HS256"] });
-      req.commandCaller = typeof payload === "object" && payload !== null && typeof payload.sub === "string" ? payload.sub : "unknown";
+      const payload = jwt.verify(token, config.secret, {
+        algorithms: ["HS256"],
+        ...(config.audience ? { audience: config.audience } : {}),
+      });
+      if (typeof payload !== "object" || payload === null) throw new Error("token payload must be an object");
+      // A token that never expires is valid forever once it leaks, and one without a subject cannot be attributed in the audit trail.
+      if (typeof payload.exp !== "number") throw new Error("token must carry an exp claim");
+      if (typeof payload.sub !== "string" || payload.sub.trim() === "") throw new Error("token must carry a sub claim");
+      req.commandCaller = payload.sub;
       next();
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
@@ -91,6 +100,6 @@ export function requireCommandAuth(config: CommandAuthConfig) {
 // /command is actually gated or wide open, never silently.
 export function describeCommandAuthMode(config: CommandAuthConfig | null): string {
   return config
-    ? "POST /command requires a valid Bearer token (HS256, GATEWAY_JWT_SECRET)"
+    ? `POST /command requires a valid Bearer token (HS256, GATEWAY_JWT_SECRET, exp and sub required${config.audience ? `, aud=${config.audience}` : ""})`
     : "POST /command has NO caller authentication (GATEWAY_JWT_SECRET not set) - configure it or restrict network access";
 }

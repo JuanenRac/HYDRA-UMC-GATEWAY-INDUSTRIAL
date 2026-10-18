@@ -24,13 +24,15 @@
 // deployment.
 // =============================================================================
 
-import express from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import { createServer as createHttpsServer } from "node:https";
 import { probeHttp, probeTcp, type ProbeResult } from "./probes.js";
 import { readPackageVersion } from "./version.js";
 import {
   CommandDispatcher,
   DEFAULT_MQTT_PUBLISH_TOPICS,
+  MAX_COMMAND_TIMEOUT_MS,
+  isProtocol,
   type CommandExecutor,
   type CommandRequest,
   type Protocol,
@@ -123,6 +125,9 @@ export interface BuildAppOptions {
   // request produced (InMemoryCommandAuditLogger, audit.ts) instead of
   // depending on - or polluting - a real log file on disk.
   auditLogger?: CommandAuditLogger;
+  // How long a GET /status answer is reused (default GATEWAY_STATUS_CACHE_MS or 1500 ms). Every uncached call opens a connection to each child, so an unbounded
+  // loop of requests would become a connection flood against the plant services; concurrent calls also share one probe round.
+  statusCacheMs?: number;
 }
 
 export function buildApp(options: BuildAppOptions = {}) {
@@ -137,6 +142,31 @@ export function buildApp(options: BuildAppOptions = {}) {
   const commandAuthMiddleware = commandAuthConfig ? [requireCommandAuth(commandAuthConfig)] : [];
   const rateLimiter = options.rateLimiter ?? new CommandRateLimiter();
   const auditLogger = options.auditLogger ?? new FileCommandAuditLogger();
+  const statusCacheMs = options.statusCacheMs ?? resolveStatusCacheMs();
+  let statusCache: { at: number; pending: Promise<StatusBody> } | null = null;
+
+  async function probeChildren(): Promise<StatusBody> {
+    const children = buildChildren();
+    const results = await Promise.all(
+      children.map(async (child) => {
+        const probe = await child.check();
+        return {
+          name: child.name,
+          protocol: child.protocol,
+          endpoint: child.endpoint,
+          reachable: probe.reachable,
+          latencyMs: probe.latencyMs,
+          ...(probe.error ? { error: probe.error } : {}),
+        };
+      }),
+    );
+    return {
+      gateway: "HYDRA-UMC-GATEWAY-INDUSTRIAL",
+      version: readPackageVersion(),
+      allReachable: results.every((r) => r.reachable),
+      children: results,
+    };
+  }
 
   // Real, fast liveness probe - deliberately separate from /status below,
   // which is a genuine deep diagnostic (real reachability checks against
@@ -153,28 +183,21 @@ export function buildApp(options: BuildAppOptions = {}) {
     res.json({ gateway: "HYDRA-UMC-GATEWAY-INDUSTRIAL", version: readPackageVersion(), status: "ok" });
   });
 
-  app.get("/status", async (_req, res) => {
-    const children = buildChildren();
-    const results = await Promise.all(
-      children.map(async (child) => {
-        const probe = await child.check();
-        return {
-          name: child.name,
-          protocol: child.protocol,
-          endpoint: child.endpoint,
-          reachable: probe.reachable,
-          latencyMs: probe.latencyMs,
-          ...(probe.error ? { error: probe.error } : {}),
-        };
-      }),
-    );
-
-    res.json({
-      gateway: "HYDRA-UMC-GATEWAY-INDUSTRIAL",
-      version: readPackageVersion(),
-      allReachable: results.every((r) => r.reachable),
-      children: results,
-    });
+  app.get("/status", async (_req, res, next) => {
+    try {
+      const now = Date.now();
+      if (!statusCache || now - statusCache.at >= statusCacheMs) {
+        // Single flight: callers arriving while a round is running (or inside the cache window) share its answer.
+        const pending = probeChildren();
+        statusCache = { at: now, pending };
+        pending.catch(() => {
+          if (statusCache?.pending === pending) statusCache = null;
+        });
+      }
+      res.json(await statusCache.pending);
+    } catch (error) {
+      next(error);
+    }
   });
 
   const OUTCOME_HTTP_STATUS: Record<string, number> = {
@@ -207,14 +230,24 @@ export function buildApp(options: BuildAppOptions = {}) {
         res.status(400).json({ error: "protocol, operation and target are required strings" });
         return;
       }
-      if (timeoutMs !== undefined && (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
+      if (!isProtocol(protocol)) {
         res.locals.auditOutcome = "invalid_request";
-        res.status(400).json({ error: "timeoutMs, when present, must be a positive finite number" });
+        res.status(400).json({ error: "protocol must be one of OPC-UA, MQTT, MTConnect" });
+        return;
+      }
+      if (operation.length === 0 || operation.length > MAX_OPERATION_LENGTH || target.length === 0 || target.length > MAX_TARGET_LENGTH) {
+        res.locals.auditOutcome = "invalid_request";
+        res.status(400).json({ error: `operation (1-${MAX_OPERATION_LENGTH} characters) and target (1-${MAX_TARGET_LENGTH} characters) must not be empty or oversized` });
+        return;
+      }
+      if (timeoutMs !== undefined && (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_COMMAND_TIMEOUT_MS)) {
+        res.locals.auditOutcome = "invalid_request";
+        res.status(400).json({ error: `timeoutMs, when present, must be a positive finite number of at most ${MAX_COMMAND_TIMEOUT_MS}` });
         return;
       }
 
       const outcome = await dispatcher.dispatch({
-        protocol: protocol as Protocol,
+        protocol,
         operation,
         target,
         timeoutMs,
@@ -225,7 +258,30 @@ export function buildApp(options: BuildAppOptions = {}) {
     },
   );
 
+  // Last: whatever a handler throws (or a malformed JSON body) leaves as a JSON error without a stack trace or an internal path.
+  app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    const status = typeof error === "object" && error !== null && "status" in error && typeof (error as { status: unknown }).status === "number" ? (error as { status: number }).status : 500;
+    if (status >= 500) console.error("[HYDRA-UMC-GATEWAY-INDUSTRIAL] unhandled request error", error);
+    res.locals.auditOutcome ??= status >= 500 ? "internal_error" : "invalid_request";
+    res.status(status >= 400 && status < 600 ? status : 500).json({ error: status >= 500 ? "internal error" : "invalid request" });
+  });
+
   return app;
+}
+
+const MAX_OPERATION_LENGTH = 64;
+const MAX_TARGET_LENGTH = 512;
+
+interface StatusBody {
+  gateway: string;
+  version: string;
+  allReachable: boolean;
+  children: Array<{ name: string; protocol: Protocol; endpoint: string; reachable: boolean; latencyMs: number; error?: string }>;
+}
+
+function resolveStatusCacheMs(env: NodeJS.ProcessEnv = process.env): number {
+  const configured = Number(env.GATEWAY_STATUS_CACHE_MS);
+  return Number.isFinite(configured) && configured >= 0 && env.GATEWAY_STATUS_CACHE_MS?.trim() ? configured : 1500;
 }
 
 /** The topics an MQTT publish may target: GATEWAY_MQTT_PUBLISH_TOPICS (comma-separated filters) or the gateway's own namespace. */
@@ -237,7 +293,7 @@ function resolveMqttPublishTopics(env: NodeJS.ProcessEnv = process.env): readonl
 function main() {
   const problem = commandAuthStartupProblem();
   if (problem) {
-    console.error(`[HYDRA-UMC-GATEWAY-INDUSTRIAL] refusing to start in production: ${problem}`);
+    console.error(`[HYDRA-UMC-GATEWAY-INDUSTRIAL] refusing to start: ${problem}`);
     console.error("[HYDRA-UMC-GATEWAY-INDUSTRIAL] set GATEWAY_JWT_SECRET, or GATEWAY_ALLOW_ANONYMOUS=1 for an open lab gateway.");
     process.exit(1);
   }
@@ -253,11 +309,13 @@ function main() {
   const commandAuthConfigForBanner = resolveCommandAuthConfig();
   const rateLimitConfigForBanner = resolveRateLimitConfig();
 
-  server.listen(PORT, process.env.GATEWAY_BIND_HOST?.trim() || "0.0.0.0", () => {
+  // Loopback unless told otherwise: the container image and any LAN deployment set GATEWAY_BIND_HOST explicitly.
+  const bindHost = process.env.GATEWAY_BIND_HOST?.trim() || "127.0.0.1";
+  server.listen(PORT, bindHost, () => {
     console.log("=================================================");
     console.log(` HYDRA-UMC-GATEWAY-INDUSTRIAL v${readPackageVersion()}`);
     console.log(" ROLE: Industry 4.0 interoperability bridge for factory standards");
-    console.log(` STATUS: Running on port ${PORT} - status: ${scheme}://localhost:${PORT}/status`);
+    console.log(` STATUS: Running on ${bindHost}:${PORT} - status: ${scheme}://localhost:${PORT}/status`);
     console.log(` SECURITY: ${describeTlsMode(tlsConfig)}`);
     console.log(` COMMAND AUTH: ${describeCommandAuthMode(commandAuthConfigForBanner)}`);
     console.log(` RATE LIMIT: ${describeRateLimitMode(rateLimitConfigForBanner)}`);

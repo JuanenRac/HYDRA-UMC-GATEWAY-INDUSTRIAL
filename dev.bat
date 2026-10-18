@@ -24,6 +24,8 @@ call npm audit fix
 echo ========================================
 echo  Starting HYDRA-UMC GATEWAY INDUSTRIAL (Dev Mode)
 echo ========================================
+REM The gateway refuses to start without GATEWAY_JWT_SECRET; a development run says on purpose that it is an open lab gateway (it listens on 127.0.0.1 only).
+if not defined GATEWAY_ALLOW_ANONYMOUS set "GATEWAY_ALLOW_ANONYMOUS=1"
 call npm run dev
 if errorlevel 1 (
   echo.

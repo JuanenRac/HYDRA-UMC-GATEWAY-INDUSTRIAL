@@ -56,6 +56,26 @@ jobs:
           npm run typecheck --if-present
           npm test --if-present
           npm run lint --if-present
+      - name: Bundle the gateway and smoke-test the production start (/health, secret policy)
+        if: ${{ hashFiles('scripts/smoke.mjs') != '' }}
+        run: |
+          npm run bundle
+          node scripts/smoke.mjs
+      - name: Check the docker-compose.yml and Dockerfile structure
+        if: ${{ hashFiles('tools/verify_compose.py') != '' }}
+        run: python tools/verify_compose.py
+      - name: Validate the compose file with Docker Compose
+        if: ${{ hashFiles('docker-compose.yml') != '' }}
+        env:
+          # placeholders so that the required variables resolve; nothing here is a real secret
+          GATEWAY_JWT_SECRET: ci-placeholder-not-a-secret-ci-placeholder
+          MQTT_AUTH_JSON: "[]"
+          MQTT_ACL_JSON: "[]"
+        run: |
+          # the build contexts are sibling checkouts; `config` only needs the folders to exist
+          mkdir -p ../HYDRA-UMC-OPCUA-SERVER ../HYDRA-UMC-MQTT-BROKER ../HYDRA-UMC-MTCONNECT-ADAPTER
+          docker compose config --quiet
+          echo "DOCKER_COMPOSE_CONFIG=PASS"
       - name: Set up Rust
         if: ${{ hashFiles('Cargo.toml') != '' }}
         uses: dtolnay/rust-toolchain@stable

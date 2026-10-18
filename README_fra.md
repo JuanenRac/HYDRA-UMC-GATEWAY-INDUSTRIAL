@@ -26,11 +26,11 @@ Il agit comme un traducteur multiprotocole, exposant les états robotiques inter
 ### Caractéristiques principales :
 * 🌐 **Prise en charge multi-standard :** Interfaces OPC-UA, MQTT et MTConnect intégrées.
 * 🛡️ **Sécurité industrielle :** TLS 1.2+ réel sur la propre API HTTP de cette passerelle, activé via de vrais fichiers de certificat (`TLS_CERT_PATH`/`TLS_KEY_PATH`) ; ajouter `TLS_CLIENT_CA_PATH` en fait du vrai mutual TLS, refusant la poignée de main TLS elle-même pour tout appelant sans certificat signé par cette CA - voir [`docs/API.md`](docs/API.md#security-tls--mutual-tls).
-* 🔄 **Mappage d'état :** Traduction en temps réel de l'état JSON interne de Hydra en espaces d'adressage industriels standardisés.
+* 🔄 **Mappage d'état :** Traduction en temps réel de l'état JSON interne de Hydra en espaces d'adressage industriels standardisés. *(prévu : aujourd'hui la passerelle agrège la joignabilité des trois services et ne traduit aucune donnée)*
 * ⚡ **Haute fiabilité :** Pont léger dédié optimisé pour une disponibilité industrielle 24h/24 et 7j/7.
 * 🚦 **Réel v0 - Liste d'autorisation de commandes + Backpressure :** `POST /command` est protégé par une liste d'autorisation par défaut-refus par protocole, une limite de concurrence bornée et un vrai timeout - voir « Vérification d'honnêteté » ci-dessous pour ce qui est appliqué exactement aujourd'hui.
 * 🔐 **Authentification de l'appelant par commande :** `POST /command` accepte aussi un `GATEWAY_JWT_SECRET` optionnel - une fois défini, chaque requête doit porter un `Authorization: Bearer <token>` valide (HS256, algorithme fixé explicitement) sous peine d'être rejetée avant même d'atteindre la liste d'autorisation. Indépendant du mTLS : ceci identifie QUI a émis la commande, le mTLS (s'il est configuré) identifie le pair TLS.
-* 🧱 **Politique de production et résultats honnêtes :** Un démarrage en production (`NODE_ENV=production`, que le compose définit) refuse de fonctionner sans un vrai `GATEWAY_JWT_SECRET` (32+ caractères, pas un exemple ; `GATEWAY_ALLOW_ANONYMOUS=1` dit volontairement qu'il s'agit d'une passerelle de laboratoire ouverte). L'exécuteur par défaut ne fait que sonder l'enfant : il répond donc `501` avec le résultat `probe_only` (rien n'a été exécuté) au lieu de `accepted` ; un `publish` MQTT ne peut viser que l'espace propre de la passerelle (`hydra/gateway/#`, ou `GATEWAY_MQTT_PUBLISH_TOPICS`) et jamais un topic de commande de bridge (`hydra/bridges/...`) ni `$SYS` ; `GATEWAY_BIND_HOST` choisit l'interface. *(implémenté)*
+* 🧱 **Politique de production et résultats honnêtes :** La passerelle refuse de démarrer, dans n'importe quel environnement (le compose définit `NODE_ENV=production`), sans un vrai `GATEWAY_JWT_SECRET` (32+ caractères, pas un exemple ; `GATEWAY_ALLOW_ANONYMOUS=1` dit volontairement qu'il s'agit d'une passerelle de laboratoire ouverte). L'exécuteur par défaut ne fait que sonder l'enfant : il répond donc `501` avec le résultat `probe_only` (rien n'a été exécuté) au lieu de `accepted` ; un `publish` MQTT ne peut viser que l'espace propre de la passerelle (`hydra/gateway/#`, ou `GATEWAY_MQTT_PUBLISH_TOPICS`) et jamais un topic de commande de bridge (`hydra/bridges/...`) ni `$SYS` ; `GATEWAY_BIND_HOST` choisit l'interface. Les jetons doivent porter `exp` et `sub` (et `aud` si `GATEWAY_JWT_AUDIENCE` est défini) ; la passerelle écoute sur 127.0.0.1 sauf si `GATEWAY_BIND_HOST` dit autre chose. *(implémenté)*
 
 **Vérification d'honnêteté - ce qui fonctionne réellement aujourd'hui :** `POST /command { protocol, operation, target }` est réel : l'opération doit être explicitement listée pour son protocole (`403` sinon - v0 n'autorise que les opérations de type lecture/publication, rien qui écrive sur un PLC en direct), pas plus qu'un nombre borné de commandes ne s'exécutent à la fois (`429` au-delà), et une commande qui ne se résout pas à temps est signalée comme expirée (`504`) plutôt que laissée en attente indéfiniment. Le chemin d'exécution par défaut réutilise les propres sondes d'accessibilité réelles de ce projet - honnête sur le fait qu'il n'effectue pas encore une vraie écriture au niveau protocole OPC-UA/MQTT/MTConnect, puisqu'aucun des trois enfants n'expose encore de vraie API de commande non plus. Voir `CHANGELOG.md` pour ce qui a été livré exactement.
 
@@ -76,7 +76,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   └── server.ts         # App Express : GET /status, POST /command
 ├── tests/               # Vraie suite vitest (probes, server, command)
 ├── docs/               # Documentation et référence de mappage
-├── build/               # Sortie compilée (npm run build)
+├── dist/               # Sortie compilée (npm run build)
 ├── images/             # Médias et diagrammes
 ├── scripts/            # Scripts utilitaires (bump-version.mjs)
 ├── tools/
@@ -123,7 +123,7 @@ joindre.
 ## 🛠️ ENVIRONNEMENT DE DÉVELOPPEMENT
 
 ### Prérequis
-- [Node.js](https://nodejs.org/) (v18 ou supérieur recommandé)
+- [Node.js](https://nodejs.org/) (v20 ou supérieur recommandé)
 - npm
 
 ### Installation

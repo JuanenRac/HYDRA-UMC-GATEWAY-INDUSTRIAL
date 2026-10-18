@@ -20,6 +20,19 @@ semantic-versioning judgment calls:
 
 ---
 
+## [0.1.4] - Authentication in every environment, validated commands, a /status that cannot flood the plant
+
+- **The gateway refuses to start without `GATEWAY_JWT_SECRET` in any environment**, not only with `NODE_ENV=production`; `GATEWAY_ALLOW_ANONYMOUS=1` still says on purpose that it is an open lab gateway. It now listens on `127.0.0.1` unless `GATEWAY_BIND_HOST` says otherwise (the container image sets `0.0.0.0`; the development scripts set `GATEWAY_ALLOW_ANONYMOUS=1`).
+- A token must carry `exp` (a token that never expires is valid for ever once it leaks) and `sub`, and carry `aud` when `GATEWAY_JWT_AUDIENCE` is set, so a token minted for another service that shares the secret is not accepted.
+- `POST /command` validates its body: `protocol` must be exactly `OPC-UA`, `MQTT` or `MTConnect` (`"constructor"` and `"__proto__"` used to cause a `500` with a stack trace), `operation` and `target` have a maximum length, and `timeoutMs` at most 30000 (a bigger value used to overflow the timer and time out at once). Any unexpected failure, or a malformed JSON body, answers a plain JSON error without a stack trace or a server path.
+- `GET /status` reuses its answer for `GATEWAY_STATUS_CACHE_MS` (default 1500 ms) and concurrent calls share one probe round, so a loop of requests no longer opens a connection to every plant service per request; the probe of the MTConnect adapter releases its response.
+- The audit trail records the peer address, user agent, duration and mutual-TLS client certificate subject, and an attempt whose client hung up before the answer is recorded too (`aborted`); it no longer calls `stat()` on every record. The rate limiter drops its oldest entries past a ceiling and no longer scans every key on every request.
+- An MQTT `publish` can no longer reach the AMR command topics (`vda5050/...`).
+- The version is read once, and also found when the process starts from another directory.
+- **Container and compose:** the image installs from the lockfile, bundles with `npm run bundle` (an image build no longer bumps the version it reports), runs as an unprivileged user on Node 24 and checks its own `/health`; `docker-compose.yml` passes through the settings of the OPC-UA server (administrator, certificate trust, host name, roster source) and of the MTConnect adapter (machine source), which the stack never configured, keeps the OPC-UA certificates and the audit trail in volumes, and gives the gateway a healthcheck.
+- **CI:** a smoke test starts the real bundle and checks that `/health` reports the repository's version, that it refuses to start without a secret and that `POST /command` asks for a token; `tools/verify_compose.py` checks the structure of the compose file and the Dockerfile, and `docker compose config` validates the compose file.
+- Documentation: the examples of `docs/API.md` no longer show a version the package does not have, the README no longer says that a production start is the only one that needs a secret and marks the state mapping as planned, and the manifest counts 85 tests. 85 tests.
+
 ## [0.1.3] - Production policy, honest probe-only outcome and restricted MQTT publish topics
 
 - A production start (`NODE_ENV=production`, which the compose file sets) refuses to run without a real `GATEWAY_JWT_SECRET` (at least 32 characters, not an example, not repetitive); `GATEWAY_ALLOW_ANONYMOUS=1` states on purpose that it is an open lab gateway.
