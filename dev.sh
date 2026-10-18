@@ -26,10 +26,10 @@ echo "========================================"
 # The gateway refuses to start without GATEWAY_JWT_SECRET; a development run says on purpose that it is an open lab gateway (it listens on 127.0.0.1 only).
 export GATEWAY_ALLOW_ANONYMOUS="${GATEWAY_ALLOW_ANONYMOUS:-1}"
 if npm run dev; then
-  read -p "Press Enter to close..."
+  if [ -t 0 ] && [ "${HYDRA_UMC_CI:-}" != "1" ] && [ -z "${CI:-}" ]; then read -r -p "Press Enter to close..." _ || true; fi
 else
   echo ""
   echo "HYDRA-UMC GATEWAY INDUSTRIAL exited with an error."
-  read -p "Press Enter to close..."
+  if [ -t 0 ] && [ "${HYDRA_UMC_CI:-}" != "1" ] && [ -z "${CI:-}" ]; then read -r -p "Press Enter to close..." _ || true; fi
   exit 1
 fi
