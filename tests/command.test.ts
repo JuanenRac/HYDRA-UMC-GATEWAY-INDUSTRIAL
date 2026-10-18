@@ -1,7 +1,7 @@
 // =============================================================================
 // HYDRA-UMC GATEWAY INDUSTRIAL - tests/command.test.ts
 // Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-// GPL-3.0 - see LICENSE
+// GPL-3.0-or-later - see LICENSE
 //
 // Real unit tests for CommandDispatcher: no HTTP, no network - exercises
 // the allowlist/backpressure/timeout decision layer directly against

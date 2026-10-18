@@ -1,7 +1,7 @@
 // =============================================================================
 // HYDRA-UMC GATEWAY INDUSTRIAL - Real TLS/mTLS configuration: src/tls.ts
 // Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-// GPL-3.0 - see LICENSE
+// GPL-3.0-or-later - see LICENSE
 //
 // Found while auditing the code: this project's
 // own README already advertised "Mutual TLS (mTLS) and certificate-based

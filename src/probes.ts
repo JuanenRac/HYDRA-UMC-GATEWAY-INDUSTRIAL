@@ -1,7 +1,7 @@
 // =============================================================================
 // HYDRA-UMC GATEWAY INDUSTRIAL - Real child reachability probes: src/probes.ts
 // Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-// GPL-3.0 - see LICENSE
+// GPL-3.0-or-later - see LICENSE
 //
 // Real network checks against each protocol bridge, replacing the static
 // CHILDREN list this project's GET /status used to return unconditionally,

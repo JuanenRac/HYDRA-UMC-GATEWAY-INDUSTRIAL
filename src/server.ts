@@ -1,7 +1,7 @@
 // =============================================================================
 // HYDRA-UMC GATEWAY INDUSTRIAL - Integration Status Surface: src/server.ts
 // Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-// GPL-3.0 - see LICENSE
+// GPL-3.0-or-later - see LICENSE
 //
 // Parent/integration repo for the three protocol bridges that make up the
 // Industry 4.0 Gateway (see this project's own README.md for the full

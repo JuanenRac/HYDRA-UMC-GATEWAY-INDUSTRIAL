@@ -1,7 +1,7 @@
 // =============================================================================
 // HYDRA-UMC GATEWAY INDUSTRIAL - Build-time version bump: scripts/bump-version.mjs
 // Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-// GPL-3.0 - see LICENSE
+// GPL-3.0-or-later - see LICENSE
 // =============================================================================
 // Runs as the first step of `npm run build` (see the "build" script in
 // package.json) so every real production build bumps package.json's own

@@ -2,7 +2,7 @@
 # =============================================================================
 # HYDRA-UMC GATEWAY INDUSTRIAL - Development Server Start Script
 # Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-# GPL-3.0 - see LICENSE
+# GPL-3.0-or-later - see LICENSE
 # =============================================================================
 
 echo "========================================"
@@ -10,7 +10,7 @@ echo " HYDRA-UMC GATEWAY INDUSTRIAL"
 echo " Development Server Start Script - installs dependencies and starts the dev server"
 echo " Author: JuanenRac (Electro Hobby 3D)"
 echo " E-mail: electrohobby3d@gmail.com"
-echo " License: GPL-3.0 - see LICENSE"
+echo " License: GPL-3.0-or-later - see LICENSE"
 echo "========================================"
 echo ""
 

@@ -1,7 +1,7 @@
 // =============================================================================
 // HYDRA-UMC GATEWAY INDUSTRIAL - Real per-command caller authentication: src/auth.ts
 // Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-// GPL-3.0 - see LICENSE
+// GPL-3.0-or-later - see LICENSE
 //
 // Real gap this closes: without TLS_CLIENT_CA_PATH configured (see
 // tls.ts), POST /command has no way at all to tell WHO is issuing a

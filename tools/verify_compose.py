@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # HYDRA-UMC-GATEWAY-INDUSTRIAL - tools/verify_compose.py
 # Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-# GPL-3.0 - see LICENSE
+# GPL-3.0-or-later - see LICENSE
 """Static checks of docker-compose.yml and the Dockerfile, runnable without Docker or PyYAML.
 
 `docker compose config` accepts a stack that starts an open API, runs as root

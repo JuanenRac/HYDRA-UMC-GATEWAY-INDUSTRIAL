@@ -9,7 +9,7 @@
 ### 🏭 Bridge di interoperabilità Industry 4.0 per standard di fabbrica
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Licenza-GPL%203.0-blue.svg" alt="GPL 3.0">
+  <img src="https://img.shields.io/badge/Licenza-GPL%203.0--or--later-blue.svg" alt="GPL 3.0 or later">
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Industry 4.0">
   <img src="https://img.shields.io/badge/Sicurezza-mTLS%20%2F%20TLS%201.2%2B-green.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocolli-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
@@ -292,4 +292,4 @@ Questo progetto fa parte dell'ecosistema robotico HYDRA-UMC dello stesso autore 
 📺 [youtube.com/@electrohobby3d](https://youtube.com/@electrohobby3d)
 
 ## 📜 LICENZA
-GPL-3.0 - Vedere LICENSE per i dettagli.
+GPL-3.0-or-later - Vedere LICENSE per i dettagli.

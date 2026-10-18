@@ -1,7 +1,7 @@
 // =============================================================================
 // HYDRA-UMC GATEWAY INDUSTRIAL - Smoke test of the bundle: scripts/smoke.mjs
 // Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-// GPL-3.0 - see LICENSE
+// GPL-3.0-or-later - see LICENSE
 //
 // Starts the real bundle (dist/server.cjs, `npm run bundle` first) the way the
 // container does and checks what the unit tests cannot: that the bundle

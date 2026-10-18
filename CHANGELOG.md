@@ -20,6 +20,12 @@ semantic-versioning judgment calls:
 
 ---
 
+## [0.1.5] - Maturity lowered to functional
+
+- Build version synchronized with `hydra-umc.project.json` and the repository-native version source.
+- The licence is written as GPL-3.0-or-later in every header and in the package metadata.
+- Maturity is functional: nothing here has been verified on real hardware yet.
+
 ## [0.1.4] - Authentication in every environment, validated commands, a /status that cannot flood the plant
 
 - **The gateway refuses to start without `GATEWAY_JWT_SECRET` in any environment**, not only with `NODE_ENV=production`; `GATEWAY_ALLOW_ANONYMOUS=1` still says on purpose that it is an open lab gateway. It now listens on `127.0.0.1` unless `GATEWAY_BIND_HOST` says otherwise (the container image sets `0.0.0.0`; the development scripts set `GATEWAY_ALLOW_ANONYMOUS=1`).

@@ -9,7 +9,7 @@
 ### 🏭 Industrie 4.0 Interoperabilitätsbrücke für Fabrikstandards
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Lizenz-GPL%203.0-blue.svg" alt="GPL 3.0">
+  <img src="https://img.shields.io/badge/Lizenz-GPL%203.0--or--later-blue.svg" alt="GPL 3.0 or later">
   <img src="https://img.shields.io/badge/Standard-Industrie%204.0-blue.svg" alt="Industry 4.0">
   <img src="https://img.shields.io/badge/Sicherheit-mTLS%20%2F%20TLS%201.2%2B-green.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protokolle-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
@@ -293,4 +293,4 @@ Dieses Projekt ist Teil des HYDRA-UMC-Robotik-Ökosystems desselben Autors (Juan
 📺 [youtube.com/@electrohobby3d](https://youtube.com/@electrohobby3d)
 
 ## 📜 LIZENZ
-GPL-3.0 - Siehe LICENSE für Details.
+GPL-3.0-or-later - Siehe LICENSE für Details.

@@ -9,7 +9,7 @@
 ### 🏭 面向工厂标准的工业 4.0 互操作性桥梁
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Licencia-GPL%203.0-blue.svg" alt="GPL 3.0">
+  <img src="https://img.shields.io/badge/Licencia-GPL%203.0--or--later-blue.svg" alt="GPL 3.0 or later">
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Industry 4.0">
   <img src="https://img.shields.io/badge/Security-mTLS%20%2F%20TLS%201.2%2B-green.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
@@ -292,4 +292,4 @@ curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -
 📺 [youtube.com/@electrohobby3d](https://youtube.com/@electrohobby3d)
 
 ## 📜 许可证
-GPL-3.0 —— 详见 LICENSE。
+GPL-3.0-or-later —— 详见 LICENSE。
