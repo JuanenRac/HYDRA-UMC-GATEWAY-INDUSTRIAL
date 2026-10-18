@@ -17,6 +17,16 @@
 
 ---
 
+## 📋 At a glance
+
+| | |
+|---|---|
+| Version | `0.1.5` |
+| Maturity | Functional |
+| Stack | Node.js / Express / real TCP/HTTP reachability probes |
+| Target | The Raspberry Pi CM5 of a HYDRA-UMC cell |
+| On real hardware | Not yet: no run on real hardware is recorded for this version |
+
 ## 1. 🛠️ TECHNICAL OVERVIEW
 
 **HYDRA-UMC-GATEWAY-INDUSTRIAL** is the secure communication bridge between the HYDRA-UMC ecosystem and external industrial standards. It allows the micro-factory to interact with third-party PLCs, SCADA systems, and cloud-based IIoT platforms.
