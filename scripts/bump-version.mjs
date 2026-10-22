@@ -1,14 +1,12 @@
 // =============================================================================
-// HYDRA-UMC GATEWAY INDUSTRIAL - Build-time version bump: scripts/bump-version.mjs
+// HYDRA-UMC GATEWAY INDUSTRIAL - Legacy version helper: scripts/bump-version.mjs
 // Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
 // GPL-3.0-or-later - see LICENSE
 // =============================================================================
-// Runs as the first step of `npm run build` (see the "build" script in
-// package.json) so every real production build bumps package.json's own
-// "version" field automatically - no manual version bumps, no builds that
-// silently ship under the previous number. Copied/adapted from
-// HYDRA-UMC-SERVER's own scripts/bump-version.mjs - same ecosystem-wide
-// convention, applied here unchanged.
+// Legacy native-only helper kept for reference; nothing calls it. Building
+// never changes a version, and the explicit bump command
+// (`python tools/hydra_project_tool.py bump`) uses bump_manifest_version.py as
+// the single owner of the package.json + manifest + CHANGELOG transaction.
 //
 // Increment rule ("odometer" in base 10, ecosystem-wide convention):
 //   - patch +1

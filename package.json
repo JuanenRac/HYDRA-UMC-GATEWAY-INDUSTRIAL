@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx src/server.ts",
     "bundle": "esbuild src/server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "build": "node scripts/bump-version.mjs && npm run bundle",
+    "build": "npm run bundle",
     "smoke": "node scripts/smoke.mjs",
     "start": "node dist/server.cjs",
     "typecheck": "tsc --noEmit",

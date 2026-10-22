@@ -24,7 +24,7 @@ echo * Email     : electrohobby3d@gmail.com
 echo * Copyright : (C) 2026 JuanenRac
 echo * License   : GPL-3.0-or-later - see LICENSE
 echo * ------------------------------------------------------------------------- *
-echo * 1. Increment the project version and synchronise its manifest.
+echo * 1. Read the project version (building never changes it; use the explicit bump command).
 echo * 2. Run this project's declared build, verification and packaging commands.
 echo * 3. Report the result and keep an interactive terminal open.
 echo *****************************************************************************
@@ -44,6 +44,13 @@ if errorlevel 1 (
   exit /b 1
 )
 
+REM HYDRA_UMC_SCRIPT_STANDARD_VERSION_STEP
+echo [1/3] Reading the project version (building never changes it)...
+for /f "usebackq delims=" %%V in (`python -c "import json; print(json.load(open(r'%~dp0hydra-umc.project.json', encoding='utf-8'))['version'])"`) do set "HYDRA_UMC_VERSION_BUILT=%%V"
+if not defined HYDRA_UMC_VERSION_BUILT set "HYDRA_UMC_VERSION_BUILT=unknown"
+echo       Building v%HYDRA_UMC_VERSION_BUILT% (building never changes the version)
+echo.
+echo.
 echo ========================================
 echo  Compiling HYDRA-UMC GATEWAY INDUSTRIAL (Prod Mode)
 echo ========================================
@@ -54,28 +61,8 @@ if errorlevel 1 (
   %KEEP_OPEN%
   exit /b 1
 )
-REM npm run build bumps package.json's own native version FIRST (see
-REM scripts/bump-version.mjs), then bundles - so the manifest sync runs
-REM AFTER, with --sync, accepting that one real native bump rather than
-REM bumping the native version a second time itself.
-REM HYDRA_UMC_SCRIPT_STANDARD_VERSION_STEP
-echo [1/3] Incrementing project version and synchronising its manifest...
-REM HYDRA_UMC_SCRIPT_STANDARD_VERSION_CAPTURE_BEFORE
-for /f "usebackq delims=" %%V in (`python -c "import json; print(json.load(open(r'%~dp0hydra-umc.project.json', encoding='utf-8'))['version'])"`) do set "HYDRA_UMC_VERSION_BEFORE=%%V"
-python "%~dp0bump_manifest_version.py" --sync
-if errorlevel 1 ( echo VERSION SYNC FAILED. & %KEEP_OPEN% & exit /b 1 )
-REM HYDRA_UMC_SCRIPT_STANDARD_VERSION_CAPTURE_AFTER
-for /f "usebackq delims=" %%V in (`python -c "import json; print(json.load(open(r'%~dp0hydra-umc.project.json', encoding='utf-8'))['version'])"`) do set "HYDRA_UMC_VERSION_AFTER=%%V"
-if not defined HYDRA_UMC_VERSION_BEFORE set "HYDRA_UMC_VERSION_BEFORE=unknown"
-if not defined HYDRA_UMC_VERSION_AFTER set "HYDRA_UMC_VERSION_AFTER=unknown"
-echo.
-echo *****************************************************************************
-echo * VERSION INCREMENT COMPLETED
-echo * v%HYDRA_UMC_VERSION_BEFORE% ^> v%HYDRA_UMC_VERSION_AFTER%
-echo * Project manifest has been synchronised by the project build flow.
-echo *****************************************************************************
-echo.
-echo.
 echo Build complete! You can now start the production server with:
 echo npm start
+echo Built v%HYDRA_UMC_VERSION_BUILT%. Building never changes the version; to raise it run: python tools\hydra_project_tool.py bump
+echo.
 %KEEP_OPEN%

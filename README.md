@@ -96,7 +96,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   └── ci_validate.py   # Manifest/CHANGELOG/docs validation used by CI
 ├── bump_manifest_version.py # Syncs hydra-umc.project.json's version to package.json's (--sync)
 ├── .env.example         # Environment variable template
-├── build.sh/.bat        # Bumps version, then npm run build
+├── build.sh/.bat        # Validate and build (building never changes the version)
 ├── build-test.sh/.bat   # Non-versioning build check (no CHANGELOG/version bump)
 ├── dev.sh/.bat           # Runs the server directly from source (tsx, no build step)
 ├── Dockerfile           # This service's own container image
@@ -180,9 +180,7 @@ curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -
 ```
 
 ### Versioning
-Every real `npm run build` bumps `package.json`'s own `version`
-automatically (`scripts/bump-version.mjs`, wired as the first step of the
-`build` script) - a base-10 "odometer": patch +1 per build, rolling over
+`npm run build` only bundles the server and never changes the version; `python tools/hydra_project_tool.py bump` raises it (through `bump_manifest_version.py`) - a base-10 "odometer": patch +1 per bump, rolling over
 into minor (and minor into major) past 9 rather than ever reaching a
 two-digit segment (`0.0.9` -> `0.1.0`, not `0.0.10`).
 

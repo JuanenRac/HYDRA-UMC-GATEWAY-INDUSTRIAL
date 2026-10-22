@@ -190,10 +190,7 @@ curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -
 ```
 
 ### バージョン管理
-実際の `npm run build` のたびに、`package.json` 自身の `version` が
-自動的に増加します（`scripts/bump-version.mjs`、`build` スクリプトの
-最初のステップとして接続）——10 進法の「オドメーター」方式：ビルド
-ごとに patch を +1 し、9 を超えると minor に繰り上がり（minor が 9 を
+`npm run build` はサーバーをバンドルするだけでバージョンを変更せず、`python tools/hydra_project_tool.py bump` が（`bump_manifest_version.py` 経由で）上げます——10 進法の「オドメーター」方式：bump のたびに patch を +1 し、9 を超えると minor に繰り上がり（minor が 9 を
 超えると major に繰り上がる）、2 桁のセグメントに到達することはあり
 ません（`0.0.9` -> `0.1.0`、`0.0.10` にはなりません）。
 

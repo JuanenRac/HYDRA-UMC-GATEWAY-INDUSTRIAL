@@ -100,7 +100,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   └── ci_validate.py   # CI 使用的清单/CHANGELOG/文档校验
 ├── bump_manifest_version.py # 将 hydra-umc.project.json 的版本与 package.json 同步(--sync)
 ├── .env.example         # 环境变量模板
-├── build.sh/.bat        # 递增版本号，然后执行 npm run build
+├── build.sh/.bat        # 然后执行 npm run build
 ├── build-test.sh/.bat   # 不递增版本号的构建检查
 ├── dev.sh/.bat           # 无需构建步骤,直接从源代码运行服务器
 ├── Dockerfile           # 本服务自身的容器镜像
@@ -182,9 +182,8 @@ curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -
 ```
 
 ### 版本管理
-每次真实的 `npm run build` 都会自动递增 `package.json` 自身的
-`version`（`scripts/bump-version.mjs`，作为 `build` 脚本的第一步接入）
-——一种十进制"里程表"方案：每次构建 patch +1，超过 9 时进位到 minor
+`npm run build` 只负责打包服务器，绝不会更改版本；`python tools/hydra_project_tool.py bump` 才会提升它（通过 `bump_manifest_version.py`）
+——一种十进制"里程表"方案：每次 bump patch +1，超过 9 时进位到 minor
 （minor 超过 9 时进位到 major），而不会到达两位数段（`0.0.9` ->
 `0.1.0`，而非 `0.0.10`）。
 
