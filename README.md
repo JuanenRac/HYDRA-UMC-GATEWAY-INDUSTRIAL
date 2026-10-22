@@ -33,11 +33,12 @@
 
 **HYDRA-UMC-GATEWAY-INDUSTRIAL** is the communication bridge between the HYDRA-UMC ecosystem and external industrial standards. It allows the micro-factory to interact with third-party PLCs, SCADA systems, and cloud-based IIoT platforms.
 
-It acts as a multi-protocol translator, exposing internal robotic states and tool telemetries as standardized nodes in OPC-UA, MQTT topics, or MTConnect XML streams, ensuring that the Hydra swarm is never an isolated island in the production plant.
+Today it is the single status surface in front of the OPC-UA server, the MQTT broker and the MTConnect adapter: it checks that each of them is up and answers, and it accepts an allow-listed set of commands whose only effect is to check that the target is reachable. Translating the internal robotic state into their address spaces is planned, so that the Hydra swarm is never an isolated island in the production plant.
 
 ### Key Features:
 * 🌐 **Multi-Standard Support:** Integrated OPC-UA, MQTT, and MTConnect interfaces.
 * 🛡️ **Industrial Security:** real TLS 1.2+ on this gateway's own HTTP API, opt-in via real certificate files (`TLS_CERT_PATH`/`TLS_KEY_PATH`); adding `TLS_CLIENT_CA_PATH` turns it into real mutual TLS, refusing the TLS handshake itself for any caller without a certificate signed by that CA - see [`docs/API.md`](docs/API.md#security-tls--mutual-tls).
+* 🔬 **Deeper checks and opt-in controls:** `GATEWAY_PROBE_MODE=protocol` makes `GET /status` speak each protocol (an OPC UA Hello must be acknowledged, an MQTT CONNECT answered, the MTConnect `/probe` must be a device document) instead of only opening a TCP connection; `GATEWAY_STRICT_TARGETS=1` checks that a target is a NodeId or an agent path; `GATEWAY_REQUIRE_TLS_FOR_AUTH=1` refuses credentials over plain HTTP from another machine; `GATEWAY_CERT_ALLOWED_CN` lets a verified client certificate command with no token; `GATEWAY_METRICS=1` serves `GET /metrics`. Every answer carries security headers and a stop closes the audit log cleanly. All off by default except the headers. *(implemented)*
 * 🔄 **State Mapping:** Real-time translation of Hydra's internal JSON state into standardized industrial address spaces. *(planned - today the gateway aggregates the reachability of the three services and translates no data)*
 * ⚡ **High Reliability:** Dedicated lightweight bridge optimized for 24/7 industrial uptime.
 * 🚦 **Real v0 - Command Allowlist + Backpressure:** `POST /command` is gated by a default-deny allowlist per protocol, a bounded concurrency limit, and a real timeout - see "Honesty check" below for exactly what's enforced today.
@@ -86,7 +87,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   ├── command.ts        # Real CommandDispatcher: allowlist + backpressure + timeout
 │   ├── version.ts        # Real package version at runtime, read from package.json
 │   └── server.ts         # Express app: GET /status, POST /command
-├── tests/               # Real vitest suite (probes, server, command)
+├── tests/               # Real vitest suite (probes, protocol probes, server, command, auth, audit, rate limit, TLS, options)
 ├── docs/               # Documentation and mapping reference
 ├── dist/               # Compiled output (npm run build)
 ├── images/             # Media and diagrams

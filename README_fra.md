@@ -33,11 +33,12 @@
 
 **HYDRA-UMC-GATEWAY-INDUSTRIAL** est le pont de communication entre l'écosystème HYDRA-UMC et les normes industrielles externes. Il permet à la micro-usine d'interagir avec des automates tiers (PLC), des systèmes SCADA et des plateformes IIoT basées sur le cloud.
 
-Il agit comme un traducteur multiprotocole, exposant les états robotiques internes et les télémétries d'outils sous forme de nœuds standardisés dans OPC-UA, de sujets MQTT ou de flux XML MTConnect, garantissant que l'essaim Hydra n'est jamais une île isolée dans l'usine de production.
+Aujourd'hui, c'est la surface d'état unique devant le serveur OPC-UA, le broker MQTT et l'adaptateur MTConnect : il vérifie que chacun est en marche et répond, et il accepte un ensemble de commandes autorisées dont le seul effet est de vérifier que la cible est joignable. Traduire l'état robotique interne vers leurs espaces d'adresses est prévu, pour que l'essaim Hydra ne soit jamais une île isolée dans l'usine de production.
 
 ### Caractéristiques principales :
 * 🌐 **Prise en charge multi-standard :** Interfaces OPC-UA, MQTT et MTConnect intégrées.
 * 🛡️ **Sécurité industrielle :** TLS 1.2+ réel sur la propre API HTTP de cette passerelle, activé via de vrais fichiers de certificat (`TLS_CERT_PATH`/`TLS_KEY_PATH`) ; ajouter `TLS_CLIENT_CA_PATH` en fait du vrai mutual TLS, refusant la poignée de main TLS elle-même pour tout appelant sans certificat signé par cette CA - voir [`docs/API.md`](docs/API.md#security-tls--mutual-tls).
+* 🔬 **Vérifications plus profondes et contrôles optionnels :** `GATEWAY_PROBE_MODE=protocol` fait parler à `GET /status` chaque protocole (un Hello OPC UA doit être acquitté, un CONNECT MQTT obtenir une réponse, le `/probe` MTConnect être un document d'appareil) au lieu d'ouvrir seulement une connexion TCP ; `GATEWAY_STRICT_TARGETS=1` vérifie qu'une cible est un NodeId ou un chemin de l'agent ; `GATEWAY_REQUIRE_TLS_FOR_AUTH=1` refuse des identifiants en HTTP clair depuis une autre machine ; `GATEWAY_CERT_ALLOWED_CN` laisse un certificat client vérifié donner des ordres sans jeton ; `GATEWAY_METRICS=1` sert `GET /metrics`. Chaque réponse porte des en-têtes de sécurité et un arrêt ferme proprement le journal d'audit. Tout est désactivé par défaut, sauf les en-têtes. *(implémenté)*
 * 🔄 **Mappage d'état :** Traduction en temps réel de l'état JSON interne de Hydra en espaces d'adressage industriels standardisés. *(prévu : aujourd'hui la passerelle agrège la joignabilité des trois services et ne traduit aucune donnée)*
 * ⚡ **Haute fiabilité :** Pont léger dédié optimisé pour une disponibilité industrielle 24h/24 et 7j/7.
 * 🚦 **Réel v0 - Liste d'autorisation de commandes + Backpressure :** `POST /command` est protégé par une liste d'autorisation par défaut-refus par protocole, une limite de concurrence bornée et un vrai timeout - voir « Vérification d'honnêteté » ci-dessous pour ce qui est appliqué exactement aujourd'hui.
@@ -86,7 +87,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   ├── command.ts        # Vrai CommandDispatcher : liste d'autorisation + backpressure + timeout
 │   ├── version.ts        # Vraie version du paquet à l'exécution, lue depuis package.json
 │   └── server.ts         # App Express : GET /status, POST /command
-├── tests/               # Vraie suite vitest (probes, server, command)
+├── tests/               # Vraie suite vitest (probes, sondes de protocole, server, command, auth, audit, limite de débit, TLS, options)
 ├── docs/               # Documentation et référence de mappage
 ├── dist/               # Sortie compilée (npm run build)
 ├── images/             # Médias et diagrammes

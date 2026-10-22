@@ -33,11 +33,12 @@
 
 **HYDRA-UMC-GATEWAY-INDUSTRIAL** ist die Kommunikationsbrücke zwischen dem HYDRA-UMC-Ökosystem und externen Industriestandards. Es ermöglicht der Micro-Factory die Interaktion mit SPSen von Drittanbietern, SCADA-Systemen und cloudbasierten IIoT-Plattformen.
 
-Es fungiert als Multi-Protokoll-Übersetzer, der interne Roboterzustände und Werkzeugtelemetrien als standardisierte Knoten in OPC-UA, MQTT-Topics oder MTConnect-XML-Streams exportiert. So wird sichergestellt, dass der Hydra-Schwarm niemals eine isolierte Insel in der Produktionsanlage ist.
+Heute ist es die einzige Statusfläche vor dem OPC-UA-Server, dem MQTT-Broker und dem MTConnect-Adapter: Es prüft, ob jeder von ihnen läuft und antwortet, und nimmt eine Liste erlaubter Befehle an, deren einzige Wirkung die Prüfung ist, ob das Ziel erreichbar ist. Den internen Roboterzustand in deren Adressräume zu übersetzen ist geplant, damit der Hydra-Schwarm niemals eine isolierte Insel in der Produktionsanlage ist.
 
 ### Hauptmerkmale:
 * 🌐 **Multi-Standard-Unterstützung:** Integrierte OPC-UA-, MQTT- und MTConnect-Schnittstellen.
 * 🛡️ **Industrielle Sicherheit:** echtes TLS 1.2+ auf der eigenen HTTP-API dieses Gateways, opt-in über echte Zertifikatsdateien (`TLS_CERT_PATH`/`TLS_KEY_PATH`); mit `TLS_CLIENT_CA_PATH` wird daraus echtes Mutual TLS, das den TLS-Handshake selbst fuer jeden Aufrufer ohne ein von dieser CA signiertes Zertifikat verweigert - siehe [`docs/API.md`](docs/API.md#security-tls--mutual-tls).
+* 🔬 **Tiefere Prüfungen und optionale Kontrollen:** `GATEWAY_PROBE_MODE=protocol` lässt `GET /status` jedes Protokoll sprechen (ein OPC-UA-Hello muss bestätigt, ein MQTT-CONNECT beantwortet werden, das `/probe` von MTConnect muss ein Gerätedokument sein), statt nur eine TCP-Verbindung zu öffnen; `GATEWAY_STRICT_TARGETS=1` prüft, dass ein Ziel eine NodeId oder ein Agentenpfad ist; `GATEWAY_REQUIRE_TLS_FOR_AUTH=1` weist Zugangsdaten über unverschlüsseltes HTTP von einem anderen Rechner ab; `GATEWAY_CERT_ALLOWED_CN` lässt ein geprüftes Client-Zertifikat ohne Token Befehle geben; `GATEWAY_METRICS=1` liefert `GET /metrics`. Jede Antwort trägt Sicherheits-Header, und ein Stopp schließt das Audit-Log sauber. Standardmäßig alles aus, außer den Headern. *(implementiert)*
 * 🔄 **Zustands-Mapping:** Echtzeit-Übersetzung des internen JSON-Zustands von Hydra in standardisierte industrielle Adressräume. *(geplant: heute fasst das Gateway die Erreichbarkeit der drei Dienste zusammen und übersetzt keine Daten)*
 * ⚡ **Hohe Zuverlässigkeit:** Dedizierte, leichtgewichtige Brücke, optimiert für den industriellen 24/7-Einsatz.
 * 🚦 **Echtes v0 - Befehls-Allowlist + Backpressure:** `POST /command` wird durch eine standardmäßig verweigernde Allowlist pro Protokoll, ein begrenztes Nebenläufigkeitslimit und einen echten Timeout abgesichert - siehe „Ehrlichkeitscheck" unten für das, was heute genau durchgesetzt wird.
@@ -86,7 +87,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   ├── command.ts        # Echter CommandDispatcher: Allowlist + Backpressure + Timeout
 │   ├── version.ts        # Echte Paketversion zur Laufzeit, gelesen aus package.json
 │   └── server.ts         # Express-App: GET /status, POST /command
-├── tests/               # Echte vitest-Suite (probes, server, command)
+├── tests/               # Echte vitest-Suite (probes, Protokollsonden, server, command, auth, Audit, Ratenbegrenzung, TLS, Optionen)
 ├── docs/               # Dokumentation und Mapping-Referenz
 ├── dist/               # Kompilierte Ausgabe (npm run build)
 ├── images/             # Medien und Diagramme

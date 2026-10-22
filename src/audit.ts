@@ -54,6 +54,8 @@ export interface CommandAuditEntry {
 
 export interface CommandAuditLogger {
   record(entry: Omit<CommandAuditEntry, "timestamp">): void;
+  /** Flushes and closes the log (a clean shutdown). Optional: an in-memory logger has nothing to close. */
+  close?(): Promise<void>;
 }
 
 const DEFAULT_AUDIT_LOG_PATH = "logs/command-audit.log";
@@ -119,6 +121,14 @@ export class FileCommandAuditLogger implements CommandAuditLogger {
       console.error("[commandAudit] log rotation failed", err);
     }
     this.stream = this.openStream();
+  }
+
+  /** Waits until everything written is on disk and closes the file. Later records open it again. */
+  close(): Promise<void> {
+    const stream = this.stream;
+    this.stream = null;
+    if (!stream) return Promise.resolve();
+    return new Promise((resolve) => stream.end(() => resolve()));
   }
 
   record(entry: Omit<CommandAuditEntry, "timestamp">): void {

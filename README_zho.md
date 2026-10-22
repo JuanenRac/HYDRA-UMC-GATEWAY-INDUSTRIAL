@@ -35,13 +35,15 @@
 之间的通信桥梁。它使微工厂能够与第三方 PLC、SCADA 系统和基于云的
 IIoT 平台进行交互。
 
-它充当多协议转换器，将内部机器人状态和工具遥测数据以标准化节点的形式
-暴露为 OPC-UA、MQTT 主题或 MTConnect XML 流，确保 Hydra 集群在生产
-车间中永远不会成为一座孤岛。
+目前它是 OPC-UA 服务器、MQTT 代理和 MTConnect 适配器前面唯一的状态界面：
+检查它们各自是否在运行并作出响应，并接受一组允许列表内的命令，这些命令
+唯一的作用是检查目标是否可达。把内部机器人状态翻译到它们的地址空间是
+计划中的工作，以便 Hydra 集群在生产车间中永远不会成为一座孤岛。
 
 ### 关键特性：
 * 🌐 **多标准支持：** 集成的 OPC-UA、MQTT 和 MTConnect 接口。
 * 🛡️ **工业级安全：** 该网关自身 HTTP API 上真实的 TLS 1.2+,通过真实证书文件(`TLS_CERT_PATH`/`TLS_KEY_PATH`)按需启用;再设置 `TLS_CLIENT_CA_PATH` 即成为真正的双向 TLS——任何未出示该 CA 签发证书的调用方,其 TLS 握手本身就会被拒绝——详见 [`docs/API.md`](docs/API.md#security-tls--mutual-tls)。
+* 🔬 **更深入的检查与可选控制：** `GATEWAY_PROBE_MODE=protocol` 让 `GET /status` 用各自的协议对话，而不只是打开 TCP 连接（OPC UA 的 Hello 必须得到确认，MQTT 的 CONNECT 必须得到应答，MTConnect 的 `/probe` 必须是设备文档）；`GATEWAY_STRICT_TARGETS=1` 检查目标是 NodeId 或代理路径；`GATEWAY_REQUIRE_TLS_FOR_AUTH=1` 拒绝来自其他机器的明文 HTTP 凭据；`GATEWAY_CERT_ALLOWED_CN` 让已验证的客户端证书无需令牌即可下达命令；`GATEWAY_METRICS=1` 提供 `GET /metrics`。每个响应都带有安全头，停止时会干净地关闭审计日志。除安全头外全部默认关闭。 *(已实现)*
 * 🔄 **状态映射：** 将 Hydra 内部的 JSON 状态实时转换为标准化的工业地址空间。 *（计划中：目前网关只汇总三个服务的可达性，不转换任何数据）*
 * ⚡ **高可靠性：** 专为 24/7 工业级正常运行时间优化的轻量级专用桥接。
 * 🚦 **真实 v0 —— 命令白名单 + 背压：** `POST /command` 受到按协议默认拒绝的白名单、有上限的并发限制以及真实超时的保护——具体今天实际强制执行的内容见下方「诚实说明」。
@@ -90,7 +92,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   ├── command.ts        # 真实的 CommandDispatcher：白名单 + 背压 + 超时
 │   ├── version.ts        # 运行时从 package.json 读取的真实包版本号
 │   └── server.ts         # Express 应用：GET /status、POST /command
-├── tests/               # 真实的 vitest 套件（probes、server、command）
+├── tests/               # 真实的 vitest 套件（probes、协议探测、server、command、认证、审计、限速、TLS、选项）
 ├── docs/               # 文档与映射参考
 ├── dist/               # 编译输出（npm run build）
 ├── images/             # 媒体与图表

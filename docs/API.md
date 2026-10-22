@@ -114,6 +114,7 @@ Runs a **real network probe** against each child - a TCP connect for OPC-UA/MQTT
   - `reachable` - result of the real probe for *this* request.
   - `latencyMs` - how long the probe took; on a timeout this is close to `PROBE_TIMEOUT_MS` (default `2000`).
   - `error` - present only when `reachable` is `false`: the underlying connection/HTTP error message.
+  - `detail` - present only in protocol mode, for a child that is up but needs attention (an MQTT broker that refused the probe's credentials).
 
 **Configuration** (env vars, all optional - defaults match `docker-compose.yml`'s service names):
 
@@ -125,6 +126,28 @@ Runs a **real network probe** against each child - a TCP connect for OPC-UA/MQTT
 | `OPCUA_HOST` / `OPCUA_PORT` | `opcua-server` / `4840` | OPC-UA TCP probe target. |
 | `MQTT_HOST` / `MQTT_PORT` | `mqtt-broker` / `1883` | MQTT TCP probe target. |
 | `MTCONNECT_URL` | `http://mtconnect-adapter:5000/probe` | MTConnect HTTP probe target. |
+| `GATEWAY_PROBE_MODE` | `tcp` | `protocol` makes every probe speak the protocol of its child (see below). Any other value stops the start. |
+| `GATEWAY_MQTT_PROBE_USERNAME` / `GATEWAY_MQTT_PROBE_PASSWORD` / `GATEWAY_MQTT_PROBE_CLIENT_ID` | unset | The account the MQTT probe connects with in protocol mode (a broker with authentication needs a read-only account of its own; the client ID must start with that account's prefix). Without them the probe connects anonymously with a random `hydra-gateway-probe-...` ID. |
+
+### Probe modes
+
+`tcp` (the default) opens a TCP connection to OPC-UA and MQTT and GETs the MTConnect URL expecting a 2xx. That proves a port is open, not that the service behind it works: a web server on 4840 would be "reachable".
+
+`protocol` says the first words of each protocol, so "reachable" means what it says:
+
+- **OPC-UA**: an OPC UA TCP `Hello` is sent and an `Acknowledge` must come back. An `Error` message, silence or another protocol is unreachable.
+- **MQTT**: an MQTT 3.1.1 `CONNECT` is sent and a `CONNACK` must come back. Return code 0 is reachable; 4 and 5 (the broker wants credentials) are reachable with a `detail` that says so; any other code, silence or another protocol is unreachable. The probe disconnects at once. Every `/status` round connects to the broker once (at most once per `GATEWAY_STATUS_CACHE_MS`).
+- **MTConnect**: the body of the URL must be an `MTConnectDevices` document (at most 256 KiB are read); an `MTConnectError`, an HTML page or an empty body is unreachable.
+
+All three were checked against the real HYDRA-UMC-OPCUA-SERVER, HYDRA-UMC-MQTT-BROKER and HYDRA-UMC-MTCONNECT-ADAPTER, and against small servers that accept the connection and say nothing.
+
+## Headers, metrics and shutdown
+
+Every answer carries `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY` and `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`; `X-Powered-By` is off.
+
+With `GATEWAY_METRICS=1`, `GET /metrics` serves the Prometheus text format: `hydra_gateway_uptime_seconds`, `hydra_gateway_status_probes_total`, `hydra_gateway_commands_total{outcome="..."}` (every `POST /command` attempt by its audit outcome, whichever step answered it) and, for the last probe of each child, `hydra_gateway_child_reachable` and `hydra_gateway_child_probe_latency_milliseconds`. It carries numbers and the three child names, and is open like `GET /status`.
+
+On `SIGTERM` or `SIGINT` the gateway stops accepting connections, closes the idle ones and waits for the audit log to be written to disk before it exits (after five seconds at most).
 
 ---
 
@@ -160,6 +183,10 @@ publish there would be an unauthenticated order to a machine. A refused topic is
 | `GATEWAY_ALLOW_ANONYMOUS` | unset | `1` states, on purpose, that this is an open lab gateway: it starts without a secret and `POST /command` has no caller authentication beyond the allowlist. |
 | `GATEWAY_MQTT_PUBLISH_TOPICS` | `hydra/gateway/#` | Comma-separated MQTT filters an MQTT `publish` may target. |
 | `GATEWAY_BIND_HOST` | `127.0.0.1` | The interface the gateway binds to (the container image sets `0.0.0.0`). |
+| `GATEWAY_STRICT_TARGETS` | unset | `1` checks the format of `target`: an OPC-UA target must be a NodeId (`ns=2;s=Line1.Status`, `i=2253`, `g=...`, `b=...`), an MTConnect target a path of the agent (`/current`, `/sample?from=10&count=5`, `/HydraNode_1/probe`); anything else is a `400` that says what was expected. MQTT topics have their own check. Off, any text within the length limits is accepted, as before. |
+| `GATEWAY_REQUIRE_TLS_FOR_AUTH` | unset | `1` refuses (`403`, outcome `auth_plain_http`) a request that carries an `Authorization` header over plain HTTP from another machine, before the token is looked at. Over TLS, and from loopback (a reverse proxy that terminates TLS on the same machine), it is accepted. |
+| `GATEWAY_CERT_ALLOWED_CN` | unset | Comma-separated common names. With mutual TLS on (`TLS_CLIENT_CA_PATH`), a client whose verified certificate has one of these CNs may command without a token and is recorded as the caller `cert:<CN>`. Any other client still needs a valid token when `GATEWAY_JWT_SECRET` is set (`401`) and is refused with `403` when it is not. The list without mutual TLS stops the start. With the list and mutual TLS the secret is no longer required to start (a secret that is set is still checked). |
+| `GATEWAY_METRICS` | unset | `1` serves `GET /metrics`. |
 
 **Request validation.** `protocol` must be exactly `OPC-UA`, `MQTT` or `MTConnect`, `operation` (at most 64 characters) and `target` (at most 512) must not be empty, and `timeoutMs`, when present, must be a positive number of at most 30000: anything else is a `400` with a JSON body (a malformed JSON body too, and an unexpected failure is a plain `500 {"error":"internal error"}`: an answer never carries a stack trace or a server path). The bridges' command topics (`hydra/bridges/...`, `vda5050/...`) and `$SYS` are never reachable through an MQTT `publish`.
 

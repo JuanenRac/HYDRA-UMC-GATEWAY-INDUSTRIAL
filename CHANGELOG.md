@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- `GATEWAY_PROBE_MODE=protocol` makes `GET /status` check each service in its own protocol (an OPC UA Hello must be acknowledged, an MQTT CONNECT must be answered, the MTConnect `/probe` must be a device document) instead of only opening a TCP connection; the default stays the TCP and HTTP check. Checked against the real services.
+- `GATEWAY_STRICT_TARGETS=1` checks that an OPC-UA target is a NodeId and an MTConnect target a path of the agent, with a clear 400 otherwise; off by default.
+- `GATEWAY_REQUIRE_TLS_FOR_AUTH=1` refuses an Authorization header over plain HTTP from another machine; off by default.
+- `GATEWAY_CERT_ALLOWED_CN` lets a verified client certificate with a listed common name command without a token, recorded as the caller in the audit log; it needs mutual TLS and is off by default.
+- `GATEWAY_METRICS=1` serves `GET /metrics` with the commands by outcome and the last probe of each service.
+- Every answer carries security headers, and a SIGTERM closes the listener and flushes the audit log before exiting.
+- The READMEs no longer say that the gateway translates robotic state into OPC-UA, MQTT or MTConnect (it does not yet), and the test list in their directory tree is complete.
 - Building no longer changes the version; raising it is the explicit `bump` command (`python tools/hydra_project_tool.py bump`). The build scripts only report the version they built, and CI fails if a build script runs a bump.
 - The banner follows the animated style of the ecosystem banners, with the name, the kind and the technologies of the project.
 - Added `tools/hydra_project_tool.py`: the same `validate`, `test`, `version`, `status` and `bump` commands in every repository. The checks run with `HYDRA_UMC_CI=1` and fail if the version changes; only `bump` changes it.

@@ -26,7 +26,9 @@
 
 import express, { type NextFunction, type Request, type Response } from "express";
 import { createServer as createHttpsServer } from "node:https";
-import { probeHttp, probeTcp, type ProbeResult } from "./probes.js";
+import { probeHttp, probeMqtt, probeMtconnect, probeOpcUa, probeTcp, resolveProbeMode, type ProbeMode, type ProbeResult } from "./probes.js";
+import { MetricsRegistry, metricsEnabled } from "./metrics.js";
+import { strictTargetsEnabled, targetFormatProblem } from "./targets.js";
 import { readPackageVersion } from "./version.js";
 import {
   CommandDispatcher,
@@ -38,7 +40,15 @@ import {
   type Protocol,
 } from "./command.js";
 import { resolveTlsConfig, describeTlsMode } from "./tls.js";
-import { commandAuthStartupProblem, resolveCommandAuthConfig, requireCommandAuth, describeCommandAuthMode } from "./auth.js";
+import {
+  commandAuthStartupProblem,
+  describeCommandAuthMode,
+  requireCommandAuth,
+  requireTlsForAuthEnabled,
+  requireTlsForCredentials,
+  resolveCertAuthAllowedCommonNames,
+  resolveCommandAuthConfig,
+} from "./auth.js";
 import { CommandRateLimiter, requireCommandRateLimit, resolveRateLimitConfig, describeRateLimitMode } from "./rateLimit.js";
 import { FileCommandAuditLogger, recordCommandAttempt, resolveAuditLogPath, type CommandAuditLogger } from "./audit.js";
 
@@ -61,7 +71,17 @@ interface ChildSpec {
   check: () => Promise<ProbeResult>;
 }
 
+/** The mode, or "tcp" when the setting is invalid (main() refuses an invalid one at start, before any request). */
+function probeModeOrDefault(): ProbeMode {
+  try {
+    return resolveProbeMode();
+  } catch {
+    return "tcp";
+  }
+}
+
 function buildChildren(): ChildSpec[] {
+  const mode = probeModeOrDefault();
   const opcuaHost = process.env.OPCUA_HOST || "opcua-server";
   const opcuaPort = Number(process.env.OPCUA_PORT) || 4840;
   const mqttHost = process.env.MQTT_HOST || "mqtt-broker";
@@ -73,19 +93,34 @@ function buildChildren(): ChildSpec[] {
       name: "HYDRA-UMC-OPCUA-SERVER",
       protocol: "OPC-UA",
       endpoint: `opc.tcp://${opcuaHost}:${opcuaPort}/HYDRA-UMC-OPCUA-SERVER`,
-      check: () => probeTcp(opcuaHost, opcuaPort, PROBE_TIMEOUT_MS),
+      check: () =>
+        mode === "protocol"
+          ? probeOpcUa(opcuaHost, opcuaPort, `opc.tcp://${opcuaHost}:${opcuaPort}/HYDRA-UMC-OPCUA-SERVER`, PROBE_TIMEOUT_MS)
+          : probeTcp(opcuaHost, opcuaPort, PROBE_TIMEOUT_MS),
     },
     {
       name: "HYDRA-UMC-MQTT-BROKER",
       protocol: "MQTT",
       endpoint: `mqtt://${mqttHost}:${mqttPort}`,
-      check: () => probeTcp(mqttHost, mqttPort, PROBE_TIMEOUT_MS),
+      check: () =>
+        mode === "protocol"
+          ? probeMqtt(
+              mqttHost,
+              mqttPort,
+              {
+                clientId: process.env.GATEWAY_MQTT_PROBE_CLIENT_ID?.trim() || undefined,
+                username: process.env.GATEWAY_MQTT_PROBE_USERNAME || undefined,
+                password: process.env.GATEWAY_MQTT_PROBE_PASSWORD,
+              },
+              PROBE_TIMEOUT_MS,
+            )
+          : probeTcp(mqttHost, mqttPort, PROBE_TIMEOUT_MS),
     },
     {
       name: "HYDRA-UMC-MTCONNECT-ADAPTER",
       protocol: "MTConnect",
       endpoint: mtconnectUrl,
-      check: () => probeHttp(mtconnectUrl, PROBE_TIMEOUT_MS),
+      check: () => (mode === "protocol" ? probeMtconnect(mtconnectUrl, PROBE_TIMEOUT_MS) : probeHttp(mtconnectUrl, PROBE_TIMEOUT_MS)),
     },
   ];
 }
@@ -128,18 +163,36 @@ export interface BuildAppOptions {
   // How long a GET /status answer is reused (default GATEWAY_STATUS_CACHE_MS or 1500 ms). Every uncached call opens a connection to each child, so an unbounded
   // loop of requests would become a connection flood against the plant services; concurrent calls also share one probe round.
   statusCacheMs?: number;
+  // Overridable so tests can read the counters; by default one registry per app, served at GET /metrics only with GATEWAY_METRICS=1.
+  metrics?: MetricsRegistry;
+}
+
+/** Headers every answer carries: it is a JSON API, never a page, so nothing it returns may be sniffed, framed, cached or given a script. */
+function securityHeaders(_req: Request, res: Response, next: NextFunction): void {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
+  next();
 }
 
 export function buildApp(options: BuildAppOptions = {}) {
   const app = express();
+  app.disable("x-powered-by");
+  app.use(securityHeaders);
   app.use(express.json());
+  const metrics = options.metrics ?? new MetricsRegistry();
+  const strictTargets = strictTargetsEnabled();
+  const requireTls = requireTlsForAuthEnabled();
+  const certCommonNames = resolveCertAuthAllowedCommonNames();
 
   // One dispatcher per app instance (not per request) - backpressure
   // only means anything if concurrent requests share the same in-flight
   // counter.
   const dispatcher = options.commandDispatcher ?? new CommandDispatcher({ executor: buildCommandExecutor(buildChildren()), mqttPublishTopics: resolveMqttPublishTopics() });
   const commandAuthConfig = resolveCommandAuthConfig();
-  const commandAuthMiddleware = commandAuthConfig ? [requireCommandAuth(commandAuthConfig)] : [];
+  const commandAuthMiddleware = commandAuthConfig || certCommonNames.length > 0 ? [requireCommandAuth(commandAuthConfig, certCommonNames)] : [];
   const rateLimiter = options.rateLimiter ?? new CommandRateLimiter();
   const auditLogger = options.auditLogger ?? new FileCommandAuditLogger();
   const statusCacheMs = options.statusCacheMs ?? resolveStatusCacheMs();
@@ -157,9 +210,11 @@ export function buildApp(options: BuildAppOptions = {}) {
           reachable: probe.reachable,
           latencyMs: probe.latencyMs,
           ...(probe.error ? { error: probe.error } : {}),
+          ...(probe.detail ? { detail: probe.detail } : {}),
         };
       }),
     );
+    metrics.statusProbed(results.map((r) => ({ name: r.name, protocol: r.protocol, reachable: r.reachable, latencyMs: r.latencyMs })));
     return {
       gateway: "HYDRA-UMC-GATEWAY-INDUSTRIAL",
       version: readPackageVersion(),
@@ -200,6 +255,12 @@ export function buildApp(options: BuildAppOptions = {}) {
     }
   });
 
+  if (metricsEnabled()) {
+    app.get("/metrics", (_req, res) => {
+      res.type("text/plain; version=0.0.4; charset=utf-8").send(metrics.render());
+    });
+  }
+
   const OUTCOME_HTTP_STATUS: Record<string, number> = {
     accepted: 200,
     probe_only: 501,
@@ -220,7 +281,13 @@ export function buildApp(options: BuildAppOptions = {}) {
     // tokens is bounded too, not just one sending valid commands too
     // fast - see rateLimit.ts's own header comment.
     recordCommandAttempt(auditLogger),
+    (_req, res, next) => {
+      // counts how every attempt ended, whichever middleware answered
+      res.on("finish", () => metrics.commandEnded(typeof res.locals.auditOutcome === "string" ? res.locals.auditOutcome : `http_${res.statusCode}`));
+      next();
+    },
     requireCommandRateLimit(rateLimiter),
+    ...(requireTls ? [requireTlsForCredentials()] : []),
     ...commandAuthMiddleware,
     async (req, res) => {
       const body = req.body ?? {};
@@ -239,6 +306,15 @@ export function buildApp(options: BuildAppOptions = {}) {
         res.locals.auditOutcome = "invalid_request";
         res.status(400).json({ error: `operation (1-${MAX_OPERATION_LENGTH} characters) and target (1-${MAX_TARGET_LENGTH} characters) must not be empty or oversized` });
         return;
+      }
+      if (strictTargets) {
+        const formatProblem = targetFormatProblem(protocol, target);
+        if (formatProblem) {
+          res.locals.auditOutcome = "invalid_request";
+          res.locals.auditReason = formatProblem;
+          res.status(400).json({ error: formatProblem });
+          return;
+        }
       }
       if (timeoutMs !== undefined && (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_COMMAND_TIMEOUT_MS)) {
         res.locals.auditOutcome = "invalid_request";
@@ -276,7 +352,7 @@ interface StatusBody {
   gateway: string;
   version: string;
   allReachable: boolean;
-  children: Array<{ name: string; protocol: Protocol; endpoint: string; reachable: boolean; latencyMs: number; error?: string }>;
+  children: Array<{ name: string; protocol: Protocol; endpoint: string; reachable: boolean; latencyMs: number; error?: string; detail?: string }>;
 }
 
 function resolveStatusCacheMs(env: NodeJS.ProcessEnv = process.env): number {
@@ -297,7 +373,14 @@ function main() {
     console.error("[HYDRA-UMC-GATEWAY-INDUSTRIAL] set GATEWAY_JWT_SECRET, or GATEWAY_ALLOW_ANONYMOUS=1 for an open lab gateway.");
     process.exit(1);
   }
-  const app = buildApp();
+  try {
+    resolveProbeMode();
+  } catch (error) {
+    console.error(`[HYDRA-UMC-GATEWAY-INDUSTRIAL] refusing to start: ${(error as Error).message}`);
+    process.exit(1);
+  }
+  const auditLogger = new FileCommandAuditLogger();
+  const app = buildApp({ auditLogger });
   // Real TLS/mTLS, opt-in via real certificate files - see src/tls.ts's
   // own header comment for why this exists (this project's own README
   // already claimed mTLS as a delivered feature before this). A
@@ -307,22 +390,41 @@ function main() {
   const scheme = tlsConfig ? "https" : "http";
   const server = tlsConfig ? createHttpsServer(tlsConfig, app) : app;
   const commandAuthConfigForBanner = resolveCommandAuthConfig();
+  const certCommonNamesForBanner = resolveCertAuthAllowedCommonNames();
+  if (certCommonNamesForBanner.length > 0 && !tlsConfig?.requestCert) {
+    console.error("[HYDRA-UMC-GATEWAY-INDUSTRIAL] refusing to start: GATEWAY_CERT_ALLOWED_CN needs mutual TLS (TLS_CLIENT_CA_PATH)");
+    process.exit(1);
+  }
   const rateLimitConfigForBanner = resolveRateLimitConfig();
 
   // Loopback unless told otherwise: the container image and any LAN deployment set GATEWAY_BIND_HOST explicitly.
   const bindHost = process.env.GATEWAY_BIND_HOST?.trim() || "127.0.0.1";
-  server.listen(PORT, bindHost, () => {
+  const listener = server.listen(PORT, bindHost, () => {
     console.log("=================================================");
     console.log(` HYDRA-UMC-GATEWAY-INDUSTRIAL v${readPackageVersion()}`);
     console.log(" ROLE: Industry 4.0 interoperability bridge for factory standards");
     console.log(` STATUS: Running on ${bindHost}:${PORT} - status: ${scheme}://localhost:${PORT}/status`);
     console.log(` SECURITY: ${describeTlsMode(tlsConfig)}`);
-    console.log(` COMMAND AUTH: ${describeCommandAuthMode(commandAuthConfigForBanner)}`);
+    console.log(` COMMAND AUTH: ${describeCommandAuthMode(commandAuthConfigForBanner, certCommonNamesForBanner)}`);
+    console.log(` PROBES: ${resolveProbeMode() === "protocol" ? "protocol (OPC UA Hello, MQTT CONNECT, MTConnect /probe document)" : "reachability (TCP connect / HTTP 2xx)"}`);
     console.log(` RATE LIMIT: ${describeRateLimitMode(rateLimitConfigForBanner)}`);
     console.log(` AUDIT: every POST /command attempt logged to ${resolveAuditLogPath()}`);
     console.log(" CHILDREN: OPC-UA (4840) / MQTT (1883) / MTConnect (5000) - see docker-compose.yml");
     console.log("=================================================");
   });
+
+  // A clean stop: no new connections, the audit log flushed to disk, and an end after at most five seconds if a connection will not let go.
+  const shutdown = (signal: string) => {
+    console.log(`[HYDRA-UMC-GATEWAY-INDUSTRIAL] ${signal} received: closing`);
+    const forced = setTimeout(() => process.exit(0), 5000);
+    forced.unref();
+    listener.close(() => {
+      void (auditLogger.close?.() ?? Promise.resolve()).finally(() => process.exit(0));
+    });
+    listener.closeIdleConnections?.();
+  };
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
+  process.once("SIGINT", () => shutdown("SIGINT"));
 }
 
 // Only auto-start when run directly, not when imported by
