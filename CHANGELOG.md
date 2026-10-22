@@ -71,15 +71,6 @@ All notable changes to this project are documented here.
 - **API contract clarification:** `docs/API.md` now documents the exact
   `504` boundary and the intentionally read-oriented v0 command surface.
 
-## Documentation - Real HTTP API reference
-
-- **`docs/API.md`** (new) - `GET /status` documented from the actual
-  `server.ts`/`probes.ts` code: full real example response, every field's
-  exact meaning, and the env vars that configure each child probe.
-  Cross-checked against the existing real integration test suite
-  (`tests/server.test.ts`, `tests/probes.test.ts` - 9/9 passing).
-  Documentation-only - no code changed, no version bump.
-
 ## [0.1.0] - Real TLS/mTLS on the gateway's own HTTP API
 
 - Found on code review: this project's
@@ -218,3 +209,14 @@ All notable changes to this project are documented here.
 - **`package.json`** - project metadata, no runtime dependencies yet.
 - **`build.sh` / `build.bat`** - `npm install && npm run build`.
 - **`dev.sh` / `dev.bat`** - run against source directly (no build step) for local development.
+
+## Earlier history
+
+### Documentation - Real HTTP API reference
+
+- **`docs/API.md`** (new) - `GET /status` documented from the actual
+  `server.ts`/`probes.ts` code: full real example response, every field's
+  exact meaning, and the env vars that configure each child probe.
+  Cross-checked against the existing real integration test suite
+  (`tests/server.test.ts`, `tests/probes.test.ts` - 9/9 passing).
+  Documentation-only - no code changed, no version bump.
