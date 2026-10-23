@@ -71,6 +71,7 @@ jobs:
           GATEWAY_JWT_SECRET: ci-placeholder-not-a-secret-ci-placeholder
           MQTT_AUTH_JSON: "[]"
           MQTT_ACL_JSON: "[]"
+          MQTT_TLS_DIR: "./certs/mqtt"
         run: |
           # the build contexts are sibling checkouts; `config` only needs the folders to exist
           mkdir -p ../HYDRA-UMC-OPCUA-SERVER ../HYDRA-UMC-MQTT-BROKER ../HYDRA-UMC-MTCONNECT-ADAPTER
