@@ -180,6 +180,8 @@ publish there would be an unauthenticated order to a machine. A refused topic is
 |---|---|---|
 | `GATEWAY_JWT_SECRET` | unset | Signs the `Authorization: Bearer` token `POST /command` requires. The gateway refuses to start, in any environment, without a secret of at least 32 characters that is not an example value. A token needs `exp` (it must expire) and `sub` (who issued the command; it is the `caller` of the audit trail). |
 | `GATEWAY_JWT_AUDIENCE` | unset | When set, the token must also carry this `aud`. |
+| `GATEWAY_REQUIRE_SCOPES` | on | A token must carry a `scope` (space separated; or a `scopes` / `scp` array) naming `<protocol>:<operation>` (`mqtt:publish`, `opc-ua:read`, `mtconnect:read`), `<protocol>:*` or `*`; a valid token without the scope of the command is answered 403 (`rejected_scope`). `0` accepts any valid token for any allowlisted operation. A gateway without caller authentication is not judged. |
+| `GATEWAY_CERT_SCOPES` | none | The scopes of a client certificate whose CN is in `GATEWAY_CERT_ALLOWED_CN` (comma separated). |
 | `GATEWAY_ALLOW_ANONYMOUS` | unset | `1` states, on purpose, that this is an open lab gateway: it starts without a secret and `POST /command` has no caller authentication beyond the allowlist. |
 | `GATEWAY_MQTT_PUBLISH_TOPICS` | `hydra/gateway/#` | Comma-separated MQTT filters an MQTT `publish` may target. |
 | `GATEWAY_BIND_HOST` | `127.0.0.1` | The interface the gateway binds to (the container image sets `0.0.0.0`). |

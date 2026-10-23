@@ -263,6 +263,7 @@ describe("certificate login", () => {
 
     it("lets a certificate whose CN is on the list command with no token, and records it as the caller", async () => {
       vi.stubEnv("GATEWAY_CERT_ALLOWED_CN", "scada-1");
+      vi.stubEnv("GATEWAY_CERT_SCOPES", "*");
       const result = await post("scada");
       expect(result.status).toBe(200);
       expect(result.body).toContain("cert:scada-1");
@@ -270,6 +271,7 @@ describe("certificate login", () => {
 
     it("refuses a valid certificate whose CN is not on the list", async () => {
       vi.stubEnv("GATEWAY_CERT_ALLOWED_CN", "scada-1");
+      vi.stubEnv("GATEWAY_CERT_SCOPES", "*");
       const result = await post("stranger");
       expect(result.status).toBe(403);
       expect(result.body).toContain("GATEWAY_CERT_ALLOWED_CN");
@@ -277,6 +279,7 @@ describe("certificate login", () => {
 
     it("with a token secret set as well, a listed certificate or a valid token works and nothing else does", async () => {
       vi.stubEnv("GATEWAY_CERT_ALLOWED_CN", "scada-1");
+      vi.stubEnv("GATEWAY_CERT_SCOPES", "*");
       vi.stubEnv("GATEWAY_JWT_SECRET", "k".repeat(16) + "abcdefghijklmnop");
       expect((await post("scada")).status).toBe(200);
       const stranger = await post("stranger");

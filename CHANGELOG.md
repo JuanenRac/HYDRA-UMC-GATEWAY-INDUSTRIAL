@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **Scopes per protocol and operation.** A token must name what it may do in `scope` (or `scopes` / `scp`): `mqtt:publish`, `opc-ua:read`, `mtconnect:read`, `<protocol>:*` or `*`. A valid token without the scope of the command is refused with 403 (`rejected_scope`); the allowlist still applies after it. `GATEWAY_REQUIRE_SCOPES=0` restores the old behaviour, and `GATEWAY_CERT_SCOPES` gives scopes to a listed client certificate (none by default).
+- **The compose file publishes the MQTT broker over TLS only.** Port 8883 is published with the certificate in `MQTT_TLS_DIR`; the plain listener stays on the compose network for the gateway's probe, because a production broker no longer starts with it open beyond its machine and no TLS.
 - `GATEWAY_PROBE_MODE=protocol` makes `GET /status` check each service in its own protocol (an OPC UA Hello must be acknowledged, an MQTT CONNECT must be answered, the MTConnect `/probe` must be a device document) instead of only opening a TCP connection; the default stays the TCP and HTTP check. Checked against the real services.
 - `GATEWAY_STRICT_TARGETS=1` checks that an OPC-UA target is a NodeId and an MTConnect target a path of the agent, with a clear 400 otherwise; off by default.
 - `GATEWAY_REQUIRE_TLS_FOR_AUTH=1` refuses an Authorization header over plain HTTP from another machine; off by default.

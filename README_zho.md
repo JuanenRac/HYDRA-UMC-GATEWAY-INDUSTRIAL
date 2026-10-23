@@ -48,6 +48,7 @@ IIoT 平台进行交互。
 * ⚡ **高可靠性：** 专为 24/7 工业级正常运行时间优化的轻量级专用桥接。
 * 🚦 **真实 v0 —— 命令白名单 + 背压：** `POST /command` 受到按协议默认拒绝的白名单、有上限的并发限制以及真实超时的保护——具体今天实际强制执行的内容见下方「诚实说明」。
 * 🔐 **按命令的调用方身份认证：** `POST /command` 还支持可选的 `GATEWAY_JWT_SECRET`——一旦设置,每个请求都必须携带有效的 `Authorization: Bearer <token>`(HS256,算法显式固定),否则会在到达白名单之前就被拒绝。与 mTLS 相互独立:这里识别的是"谁发出了命令",mTLS(如果配置)识别的是 TLS 对端。
+* 🎫 **按协议和操作划分的 scope：** 令牌必须在 `scope` 中写明它可以做什么（`mqtt:publish`、`opc-ua:read`、`mtconnect:read`、`<协议>:*` 或 `*`）；有效但没有该命令 scope 的令牌会被以 403 拒绝。`GATEWAY_REQUIRE_SCOPES=0` 接受任何有效令牌，`GATEWAY_CERT_SCOPES` 为列表中的客户端证书授予 scope。compose 文件只通过 TLS 发布 MQTT broker（`MQTT_TLS_DIR`）。*(已实现)*
 * 🧱 **生产策略与诚实的结果：** 网关在任何环境下（compose 设置 `NODE_ENV=production`），没有真实的 `GATEWAY_JWT_SECRET`（32 个字符以上，且不是示例值）时都会拒绝启动（`GATEWAY_ALLOW_ANONYMOUS=1` 表示有意运行开放的实验室网关）。默认执行器只探测子服务，因此以结果 `probe_only`（未执行任何操作）返回 `501`，而不是 `accepted`；MQTT `publish` 只能发往网关自己的命名空间（`hydra/gateway/#`，或 `GATEWAY_MQTT_PUBLISH_TOPICS`），绝不能发往桥接器的命令主题（`hydra/bridges/...`）或 `$SYS`；`GATEWAY_BIND_HOST` 选择绑定的网卡。令牌必须带有 `exp` 和 `sub`（若设置了 `GATEWAY_JWT_AUDIENCE` 还需 `aud`）；除非 `GATEWAY_BIND_HOST` 另有指定，网关只监听 127.0.0.1。*（已实现）*
 
 **诚实说明——今天实际运行的内容：** `POST /command { protocol, operation, target }` 是真实的：该操作必须已明确列入其协议的白名单（否则返回 `403`——v0 只允许读取/发布类操作，不允许任何会写入正在运行的 PLC 的操作），同时运行的命令数量不超过一个上限（超出则返回 `429`），未在规定时间内完成的命令会被报告为超时（`504`）而不是被无限期挂起。默认的执行路径复用了本项目自身真实的可达性探测——诚实地说明它还没有执行真正的 OPC-UA/MQTT/MTConnect 协议层写操作，因为这三个子服务目前也都还没有暴露真正的命令 API。具体已交付内容请参见 `CHANGELOG.md`。

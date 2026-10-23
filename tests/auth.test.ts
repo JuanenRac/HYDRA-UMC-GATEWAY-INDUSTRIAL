@@ -66,7 +66,7 @@ describe("HYDRA-UMC-GATEWAY-INDUSTRIAL POST /command (real JWT caller auth, opt-
   });
 
   it("accepts a real HS256 token signed with the configured secret", async () => {
-    const token = jwt.sign({ sub: "technician-1" }, SECRET, { algorithm: "HS256", expiresIn: "1h" });
+    const token = jwt.sign({ sub: "technician-1", scope: "*" }, SECRET, { algorithm: "HS256", expiresIn: "1h" });
     const res = await request(buildAcceptingApp())
       .post("/command")
       .set("Authorization", `Bearer ${token}`)

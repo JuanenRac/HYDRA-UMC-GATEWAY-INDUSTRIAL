@@ -42,6 +42,7 @@ import {
 import { resolveTlsConfig, describeTlsMode } from "./tls.js";
 import {
   commandAuthStartupProblem,
+  enforceCommandScope,
   describeCommandAuthMode,
   requireCommandAuth,
   requireTlsForAuthEnabled,
@@ -302,6 +303,7 @@ export function buildApp(options: BuildAppOptions = {}) {
         res.status(400).json({ error: "protocol must be one of OPC-UA, MQTT, MTConnect" });
         return;
       }
+      if (!enforceCommandScope(req, res, protocol, operation)) return;
       if (operation.length === 0 || operation.length > MAX_OPERATION_LENGTH || target.length === 0 || target.length > MAX_TARGET_LENGTH) {
         res.locals.auditOutcome = "invalid_request";
         res.status(400).json({ error: `operation (1-${MAX_OPERATION_LENGTH} characters) and target (1-${MAX_TARGET_LENGTH} characters) must not be empty or oversized` });

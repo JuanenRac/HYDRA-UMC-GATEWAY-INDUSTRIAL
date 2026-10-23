@@ -112,7 +112,47 @@ export function commandAuthStartupProblem(env: NodeJS.ProcessEnv = process.env):
 declare module "express-serve-static-core" {
   interface Request {
     commandCaller?: string;
+    /** What the caller may do, as `<protocol>:<operation>` scopes. Undefined only when the gateway runs without caller authentication (an open lab gateway). */
+    commandScopes?: readonly string[];
   }
+}
+
+/** GATEWAY_REQUIRE_SCOPES: on unless it is exactly "0". With it on, a caller may only run the operations its token (or certificate) names. */
+export function scopesRequired(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (env.GATEWAY_REQUIRE_SCOPES ?? "").trim() !== "0";
+}
+
+/** The scopes a verified client certificate gets (GATEWAY_CERT_SCOPES, comma or space separated). Empty means none: a certificate then cannot run anything while scopes are required. */
+export function resolveCertScopes(env: NodeJS.ProcessEnv = process.env): readonly string[] {
+  return (env.GATEWAY_CERT_SCOPES ?? "").split(/[\s,]+/).map((item) => item.trim().toLowerCase()).filter(Boolean);
+}
+
+/** The scopes of a token payload: the standard space-separated `scope` string, or a `scopes`/`scp` array of strings. Anything else yields none. */
+export function scopesFromPayload(payload: Record<string, unknown>): readonly string[] {
+  const out: string[] = [];
+  if (typeof payload.scope === "string") out.push(...payload.scope.split(/\s+/));
+  for (const key of ["scopes", "scp"]) {
+    const value = payload[key];
+    if (Array.isArray(value)) out.push(...value.filter((item): item is string => typeof item === "string"));
+  }
+  return out.map((item) => item.trim().toLowerCase()).filter(Boolean);
+}
+
+/** Whether a scope list allows `<protocol>:<operation>`; `<protocol>:*` allows every operation of that protocol and `*` everything. The comparison ignores case. */
+export function scopeAllows(scopes: readonly string[], protocol: string, operation: string): boolean {
+  const wanted = `${protocol.toLowerCase()}:${operation.toLowerCase()}`;
+  const protocolWide = `${protocol.toLowerCase()}:*`;
+  return scopes.some((scope) => scope === wanted || scope === protocolWide || scope === "*");
+}
+
+/** Refuses (403, outcome `rejected_scope`) a command whose protocol and operation the caller's scopes do not name. A caller without scopes (no authentication configured) is not judged. */
+export function enforceCommandScope(req: Request, res: Response, protocol: string, operation: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (!scopesRequired(env) || req.commandScopes === undefined) return true;
+  if (scopeAllows(req.commandScopes, protocol, operation)) return true;
+  res.locals.auditOutcome = "rejected_scope";
+  res.locals.auditReason = `the caller has no scope for ${protocol}:${operation}`;
+  res.status(403).json({ error: `this token has no scope for ${protocol.toLowerCase()}:${operation.toLowerCase()}` });
+  return false;
 }
 
 // Express middleware enforcing a valid HS256 Bearer token on the request
@@ -125,6 +165,7 @@ export function requireCommandAuth(config: CommandAuthConfig | null, certificate
       const commonName = verifiedClientCertificateCommonName(req);
       if (commonName !== null && certificateCommonNames.includes(commonName)) {
         req.commandCaller = `cert:${commonName}`;
+        req.commandScopes = resolveCertScopes();
         next();
         return;
       }
@@ -155,6 +196,7 @@ export function requireCommandAuth(config: CommandAuthConfig | null, certificate
       if (typeof payload.exp !== "number") throw new Error("token must carry an exp claim");
       if (typeof payload.sub !== "string" || payload.sub.trim() === "") throw new Error("token must carry a sub claim");
       req.commandCaller = payload.sub;
+      req.commandScopes = scopesFromPayload(payload as Record<string, unknown>);
       next();
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
@@ -173,6 +215,6 @@ export function describeCommandAuthMode(config: CommandAuthConfig | null, certif
     return `POST /command accepts a verified client certificate with CN in [${certificateCommonNames.join(", ")}]${config ? " or a valid Bearer token" : ""}`;
   }
   return config
-    ? `POST /command requires a valid Bearer token (HS256, GATEWAY_JWT_SECRET, exp and sub required${config.audience ? `, aud=${config.audience}` : ""})`
+    ? `POST /command requires a valid Bearer token (HS256, GATEWAY_JWT_SECRET, exp and sub required${config.audience ? `, aud=${config.audience}` : ""}${scopesRequired() ? ", scope required per protocol:operation" : ""})`
     : "POST /command has NO caller authentication (GATEWAY_JWT_SECRET not set) - configure it or restrict network access";
 }

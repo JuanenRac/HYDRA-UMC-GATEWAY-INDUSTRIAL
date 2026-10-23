@@ -47,7 +47,7 @@ describe("HYDRA-UMC-GATEWAY-INDUSTRIAL command audit trail", () => {
     const auditLogger = new InMemoryCommandAuditLogger();
     const dispatcher = new CommandDispatcher({ executor: async () => ({ ok: true }) });
     const app = buildApp({ commandDispatcher: dispatcher, auditLogger });
-    const token = jwt.sign({ sub: "technician-1" }, "test-secret", { algorithm: "HS256", expiresIn: "1h" });
+    const token = jwt.sign({ sub: "technician-1", scope: "*" }, "test-secret", { algorithm: "HS256", expiresIn: "1h" });
 
     await request(app)
       .post("/command")

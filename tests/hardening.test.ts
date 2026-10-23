@@ -96,15 +96,15 @@ describe("POST /command token claims", () => {
   });
 
   it("refuses an expired token and accepts a current one", async () => {
-    expect((await post(jwt.sign({ sub: "tech" }, SECRET, { algorithm: "HS256", expiresIn: -10 }))).status).toBe(403);
-    expect((await post(jwt.sign({ sub: "tech" }, SECRET, { algorithm: "HS256", expiresIn: "1h" }))).status).toBe(200);
+    expect((await post(jwt.sign({ sub: "tech", scope: "*" }, SECRET, { algorithm: "HS256", expiresIn: -10 }))).status).toBe(403);
+    expect((await post(jwt.sign({ sub: "tech", scope: "*" }, SECRET, { algorithm: "HS256", expiresIn: "1h" }))).status).toBe(200);
   });
 
   it("enforces the audience when GATEWAY_JWT_AUDIENCE is set", async () => {
     process.env.GATEWAY_JWT_AUDIENCE = "hydra-umc-gateway-industrial";
-    const other = await post(jwt.sign({ sub: "tech", aud: "hydra-umc-server" }, SECRET, { algorithm: "HS256", expiresIn: "1h" }));
+    const other = await post(jwt.sign({ sub: "tech", scope: "*", aud: "hydra-umc-server" }, SECRET, { algorithm: "HS256", expiresIn: "1h" }));
     expect(other.status).toBe(403);
-    const mine = await post(jwt.sign({ sub: "tech", aud: "hydra-umc-gateway-industrial" }, SECRET, { algorithm: "HS256", expiresIn: "1h" }));
+    const mine = await post(jwt.sign({ sub: "tech", scope: "*", aud: "hydra-umc-gateway-industrial" }, SECRET, { algorithm: "HS256", expiresIn: "1h" }));
     expect(mine.status).toBe(200);
   });
 });

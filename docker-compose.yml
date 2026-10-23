@@ -67,7 +67,7 @@ services:
       - "4840:4840"
     environment:
       - NODE_ENV=production
-      # The one account that may write SwarmOnline and MaintenanceMode; unset = nobody can.
+      # The administrator account (an identity for the audit trail; every variable is read-only, whoever logs in).
       - OPCUA_ADMIN_USERNAME=${OPCUA_ADMIN_USERNAME:-}
       - OPCUA_ADMIN_PASSWORD=${OPCUA_ADMIN_PASSWORD:-}
       # 1 accepts every client certificate (a lab); otherwise move each client's certificate from rejected/ to trusted/certs/ in the volume.
@@ -87,10 +87,21 @@ services:
     build:
       context: ../HYDRA-UMC-MQTT-BROKER
     container_name: hydra-umc-mqtt-broker
+    # Only the TLS port is published. The plain listener (1883) stays on the compose network, where the gateway's probe reaches it; a production
+    # broker refuses to start with the plain listener open beyond its machine unless TLS is configured, so the certificate below is not optional.
     ports:
-      - "1883:1883"
+      - "8883:8883"
+    expose:
+      - "1883"
+    volumes:
+      - ${MQTT_TLS_DIR:?set MQTT_TLS_DIR in .env to the folder holding server.pem and server.key (see .env.example)}:/certs:ro
     environment:
       - NODE_ENV=production
+      - MQTT_TLS_CERT=/certs/server.pem
+      - MQTT_TLS_KEY=/certs/server.key
+      # Optional: a CA file in the same folder demands a client certificate (mutual TLS).
+      - MQTT_TLS_CA=${MQTT_TLS_CA:-}
+      - MQTT_TLS_REQUIRE_CLIENT_CERT=${MQTT_TLS_REQUIRE_CLIENT_CERT:-}
       # A production broker refuses to start without credentials and an ACL (see .env.example and the broker's own docs).
       - MQTT_AUTH_JSON=${MQTT_AUTH_JSON:?set MQTT_AUTH_JSON in .env (see .env.example)}
       - MQTT_ACL_JSON=${MQTT_ACL_JSON:?set MQTT_ACL_JSON in .env (see .env.example)}
