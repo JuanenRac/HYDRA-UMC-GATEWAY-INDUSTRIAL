@@ -105,7 +105,13 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   ├── probes.ts        # 每个子服务的真实 TCP/HTTP 可达性检查
 │   ├── command.ts        # 真实的 CommandDispatcher：白名单 + 背压 + 超时
 │   ├── version.ts        # 运行时从 package.json 读取的真实包版本号
-│   └── server.ts         # Express 应用：GET /status、POST /command
+│   ├── server.ts         # Express 应用：GET /status、POST /command
+│   ├── audit.ts          # 每个 POST /command 的不可变审计轨迹 (谁请求了什么、结果如何)
+│   ├── auth.ts           # 对每条命令调用方的认证
+│   ├── rateLimit.ts      # POST /command 的速率限制
+│   ├── targets.ts        # 命令目标按其协议必须具有的格式 (OPC UA NodeId、MTConnect 路径、MQTT 主题)
+│   ├── tls.ts            # TLS 与双向 TLS 配置
+│   └── metrics.ts        # Prometheus 指标 (仅当 GATEWAY_METRICS=1 时才有 GET /metrics)
 ├── tests/               # 真实的 vitest 套件（probes、协议探测、server、command、认证、审计、限速、TLS、选项）
 ├── docs/               # 文档与映射参考
 ├── dist/               # 编译输出（npm run build）
@@ -113,7 +119,11 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── scripts/            # 实用脚本（bump-version.mjs）
 ├── tools/
 │   ├── build_test.py    # 不递增版本号的构建检查
-│   └── ci_validate.py   # CI 使用的清单/CHANGELOG/文档校验
+│   ├── ci_validate.py   # CI 使用的清单/CHANGELOG/文档校验
+│   ├── verify_compose.py # 对 docker-compose.yml 和 Dockerfile 的静态检查 (无需 Docker)
+│   ├── _doc_policy.py   # 家族共享的文档规则 (HYDRA-UMC-SDK 的副本,保持同步)
+│   ├── _readme_parity.py # 检查八个 README 结构一致 (HYDRA-UMC-SDK 的副本,保持同步)
+│   └── hydra_project_tool.py # 每个仓库相同的命令: validate、test、ci、version、status、bump
 ├── bump_manifest_version.py # 将 hydra-umc.project.json 的版本与 package.json 同步(--sync)
 ├── .env.example         # 环境变量模板
 ├── build.sh/.bat        # 然后执行 npm run build

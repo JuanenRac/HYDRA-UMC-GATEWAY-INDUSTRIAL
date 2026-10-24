@@ -100,7 +100,13 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   ├── probes.ts        # Real TCP/HTTP reachability checks against each child
 │   ├── command.ts        # Real CommandDispatcher: allowlist + backpressure + timeout
 │   ├── version.ts        # Real package version at runtime, read from package.json
-│   └── server.ts         # Express app: GET /status, POST /command
+│   ├── server.ts         # Express app: GET /status, POST /command
+│   ├── audit.ts          # Immutable audit trail of every POST /command (who asked for what, and what happened)
+│   ├── auth.ts           # Authentication of the caller of each command
+│   ├── rateLimit.ts      # Rate limiting for POST /command
+│   ├── targets.ts        # The format a command target must have for its protocol (OPC UA NodeId, MTConnect path, MQTT topic)
+│   ├── tls.ts            # TLS / mutual-TLS configuration
+│   └── metrics.ts        # Prometheus metrics (GET /metrics exists only with GATEWAY_METRICS=1)
 ├── tests/               # Real vitest suite (probes, protocol probes, server, command, auth, audit, rate limit, TLS, options)
 ├── docs/               # Documentation and mapping reference
 ├── dist/               # Compiled output (npm run build)
@@ -108,7 +114,11 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── scripts/            # Utility scripts (bump-version.mjs)
 ├── tools/
 │   ├── build_test.py    # Non-versioning build/compile check
-│   └── ci_validate.py   # Manifest/CHANGELOG/docs validation used by CI
+│   ├── ci_validate.py   # Manifest/CHANGELOG/docs validation used by CI
+│   ├── verify_compose.py # Static checks of docker-compose.yml and the Dockerfile, without Docker
+│   ├── _doc_policy.py   # Documentation rules shared by the family (a copy of HYDRA-UMC-SDK's, kept in sync)
+│   ├── _readme_parity.py # Check that the eight READMEs share one structure (a copy of HYDRA-UMC-SDK's, kept in sync)
+│   └── hydra_project_tool.py # The same commands in every repository: validate, test, ci, version, status, bump
 ├── bump_manifest_version.py # Syncs hydra-umc.project.json's version to package.json's (--sync)
 ├── .env.example         # Environment variable template
 ├── build.sh/.bat        # Validate and build (building never changes the version)

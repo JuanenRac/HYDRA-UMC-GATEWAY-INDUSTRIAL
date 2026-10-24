@@ -100,7 +100,13 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   ├── probes.ts        # Vraies vérifications d'accessibilité TCP/HTTP par enfant
 │   ├── command.ts        # Vrai CommandDispatcher : liste d'autorisation + backpressure + timeout
 │   ├── version.ts        # Vraie version du paquet à l'exécution, lue depuis package.json
-│   └── server.ts         # App Express : GET /status, POST /command
+│   ├── server.ts         # App Express : GET /status, POST /command
+│   ├── audit.ts          # Piste d'audit immuable de chaque POST /command (qui a demandé quoi et ce qui s'est passé)
+│   ├── auth.ts           # Authentification de l'appelant de chaque commande
+│   ├── rateLimit.ts      # Limitation de débit de POST /command
+│   ├── targets.ts        # Le format que doit avoir la cible d'une commande selon son protocole (NodeId OPC UA, chemin MTConnect, sujet MQTT)
+│   ├── tls.ts            # Configuration de TLS et du TLS mutuel
+│   └── metrics.ts        # Métriques Prometheus (GET /metrics n'existe qu'avec GATEWAY_METRICS=1)
 ├── tests/               # Vraie suite vitest (probes, sondes de protocole, server, command, auth, audit, limite de débit, TLS, options)
 ├── docs/               # Documentation et référence de mappage
 ├── dist/               # Sortie compilée (npm run build)
@@ -108,7 +114,11 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── scripts/            # Scripts utilitaires (bump-version.mjs)
 ├── tools/
 │   ├── build_test.py    # Vérification de build sans versionnage
-│   └── ci_validate.py   # Validation manifeste/CHANGELOG/docs utilisée par CI
+│   ├── ci_validate.py   # Validation manifeste/CHANGELOG/docs utilisée par CI
+│   ├── verify_compose.py # Contrôles statiques de docker-compose.yml et du Dockerfile, sans Docker
+│   ├── _doc_policy.py   # Règles de documentation partagées par la famille (copie de celle de HYDRA-UMC-SDK, tenue synchronisée)
+│   ├── _readme_parity.py # Contrôle que les huit README partagent la même structure (copie de celui de HYDRA-UMC-SDK, tenue synchronisée)
+│   └── hydra_project_tool.py # Les mêmes commandes dans chaque dépôt : validate, test, ci, version, status, bump
 ├── bump_manifest_version.py # Synchronise la version de hydra-umc.project.json avec celle de package.json (--sync)
 ├── .env.example         # Modèle de variables d'environnement
 ├── build.sh/.bat        # Valide et compile (compiler ne change jamais la version)

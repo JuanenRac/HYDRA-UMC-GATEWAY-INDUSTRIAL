@@ -107,7 +107,13 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 │   ├── probes.ts        # 各子サービスに対する実際の TCP/HTTP 到達可能性チェック
 │   ├── command.ts        # 実際の CommandDispatcher：アローリスト + バックプレッシャー + タイムアウト
 │   ├── version.ts        # package.json から読み取る実際のパッケージバージョン(実行時)
-│   └── server.ts         # Express アプリ：GET /status、POST /command
+│   ├── server.ts         # Express アプリ：GET /status、POST /command
+│   ├── audit.ts          # すべての POST /command の不変な監査証跡 (誰が何を要求し、何が起きたか)
+│   ├── auth.ts           # 各コマンドの呼び出し元の認証
+│   ├── rateLimit.ts      # POST /command のレート制限
+│   ├── targets.ts        # コマンドの対象がプロトコルごとに備えるべき形式 (OPC UA NodeId、MTConnect パス、MQTT トピック)
+│   ├── tls.ts            # TLS と相互 TLS の設定
+│   └── metrics.ts        # Prometheus メトリクス (GET /metrics は GATEWAY_METRICS=1 のときだけ存在)
 ├── tests/               # 実際の vitest スイート（probes、プロトコルプローブ、server、command、認証、監査、レート制限、TLS、オプション）
 ├── docs/               # ドキュメントとマッピングリファレンス
 ├── dist/               # コンパイル出力（npm run build）
@@ -115,7 +121,11 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── scripts/            # ユーティリティスクリプト（bump-version.mjs）
 ├── tools/
 │   ├── build_test.py    # バージョンを増やさないビルドチェック
-│   └── ci_validate.py   # CI が使用するマニフェスト/CHANGELOG/ドキュメント検証
+│   ├── ci_validate.py   # CI が使用するマニフェスト/CHANGELOG/ドキュメント検証
+│   ├── verify_compose.py # docker-compose.yml と Dockerfile の静的検査 (Docker 不要)
+│   ├── _doc_policy.py   # ファミリー共通のドキュメント規則 (HYDRA-UMC-SDK のコピーで、同期を維持)
+│   ├── _readme_parity.py # 8つの README が同じ構造であることの検査 (HYDRA-UMC-SDK のコピーで、同期を維持)
+│   └── hydra_project_tool.py # すべてのリポジトリで共通のコマンド: validate、test、ci、version、status、bump
 ├── bump_manifest_version.py # hydra-umc.project.json のバージョンを package.json と同期(--sync)
 ├── .env.example         # 環境変数テンプレート
 ├── build.sh/.bat        # バージョンを増加させ、その後 npm run build を実行
