@@ -23,7 +23,7 @@
 
 | | |
 |---|---|
-| Versão | `0.1.5` |
+| Versão | `0.1.6` |
 | Maturidade | Funcional |
 | Tecnologia | Node.js / Express / real TCP/HTTP reachability probes |
 | Destino | O Raspberry Pi CM5 de uma célula HYDRA-UMC |

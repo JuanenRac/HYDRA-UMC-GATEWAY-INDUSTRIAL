@@ -23,7 +23,7 @@
 
 | | |
 |---|---|
-| バージョン | `0.1.5` |
+| バージョン | `0.1.6` |
 | 成熟度 | 機能する |
 | 技術 | Node.js / Express / real TCP/HTTP reachability probes |
 | 対象 | HYDRA-UMC セルの Raspberry Pi CM5 |

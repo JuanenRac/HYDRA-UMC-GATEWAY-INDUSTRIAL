@@ -23,7 +23,7 @@
 
 | | |
 |---|---|
-| 版本 | `0.1.5` |
+| 版本 | `0.1.6` |
 | 成熟度 | 可用 |
 | 技术栈 | Node.js / Express / real TCP/HTTP reachability probes |
 | 目标 | HYDRA-UMC 工作单元的 Raspberry Pi CM5 |

@@ -2,20 +2,28 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [0.1.6] - Scopes per protocol and operation and the compose file publishes the MQTT broker over TLS only
+
+### Firmware and protocol
 
 - **Scopes per protocol and operation.** A token must name what it may do in `scope` (or `scopes` / `scp`): `mqtt:publish`, `opc-ua:read`, `mtconnect:read`, `<protocol>:*` or `*`. A valid token without the scope of the command is refused with 403 (`rejected_scope`); the allowlist still applies after it. `GATEWAY_REQUIRE_SCOPES=0` restores the old behaviour, and `GATEWAY_CERT_SCOPES` gives scopes to a listed client certificate (none by default).
-- **The compose file publishes the MQTT broker over TLS only.** Port 8883 is published with the certificate in `MQTT_TLS_DIR`; the plain listener stays on the compose network for the gateway's probe, because a production broker no longer starts with it open beyond its machine and no TLS.
 - `GATEWAY_PROBE_MODE=protocol` makes `GET /status` check each service in its own protocol (an OPC UA Hello must be acknowledged, an MQTT CONNECT must be answered, the MTConnect `/probe` must be a device document) instead of only opening a TCP connection; the default stays the TCP and HTTP check. Checked against the real services.
+
+### Tests, builds and checks
+
 - `GATEWAY_STRICT_TARGETS=1` checks that an OPC-UA target is a NodeId and an MTConnect target a path of the agent, with a clear 400 otherwise; off by default.
+- The READMEs no longer say that the gateway translates robotic state into OPC-UA, MQTT or MTConnect (it does not yet), and the test list in their directory tree is complete.
+- Building no longer changes the version; raising it is the explicit `bump` command (`python tools/hydra_project_tool.py bump`). The build scripts only report the version they built, and CI fails if a build script runs a bump.
+- Added `tools/hydra_project_tool.py`: the same `validate`, `test`, `version`, `status` and `bump` commands in every repository. The checks run with `HYDRA_UMC_CI=1` and fail if the version changes; only `bump` changes it.
+
+### Other changes
+
+- **The compose file publishes the MQTT broker over TLS only.** Port 8883 is published with the certificate in `MQTT_TLS_DIR`; the plain listener stays on the compose network for the gateway's probe, because a production broker no longer starts with it open beyond its machine and no TLS.
 - `GATEWAY_REQUIRE_TLS_FOR_AUTH=1` refuses an Authorization header over plain HTTP from another machine; off by default.
 - `GATEWAY_CERT_ALLOWED_CN` lets a verified client certificate with a listed common name command without a token, recorded as the caller in the audit log; it needs mutual TLS and is off by default.
 - `GATEWAY_METRICS=1` serves `GET /metrics` with the commands by outcome and the last probe of each service.
 - Every answer carries security headers, and a SIGTERM closes the listener and flushes the audit log before exiting.
-- The READMEs no longer say that the gateway translates robotic state into OPC-UA, MQTT or MTConnect (it does not yet), and the test list in their directory tree is complete.
-- Building no longer changes the version; raising it is the explicit `bump` command (`python tools/hydra_project_tool.py bump`). The build scripts only report the version they built, and CI fails if a build script runs a bump.
 - The banner follows the animated style of the ecosystem banners, with the name, the kind and the technologies of the project.
-- Added `tools/hydra_project_tool.py`: the same `validate`, `test`, `version`, `status` and `bump` commands in every repository. The checks run with `HYDRA_UMC_CI=1` and fail if the version changes; only `bump` changes it.
 
 ## [0.1.5] - Maturity lowered to functional
 

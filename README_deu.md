@@ -23,7 +23,7 @@
 
 | | |
 |---|---|
-| Version | `0.1.5` |
+| Version | `0.1.6` |
 | Reifegrad | Funktionsfähig |
 | Technik | Node.js / Express / real TCP/HTTP reachability probes |
 | Ziel | Der Raspberry Pi CM5 einer HYDRA-UMC-Zelle |
