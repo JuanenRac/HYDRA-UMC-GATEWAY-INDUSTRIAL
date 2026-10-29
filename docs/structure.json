@@ -1,0 +1,626 @@
+{
+  "repo": "HYDRA-UMC-GATEWAY-INDUSTRIAL",
+  "ecosystem": "hydra",
+  "svg": "en",
+  "exempt": [
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "SUPPORT.md",
+    "LICENSE",
+    "LICENSE.md",
+    "build-test.bat",
+    "build.bat",
+    "dev.bat",
+    "package-lock.json",
+    "test.bat",
+    "tsconfig.json"
+  ],
+  "cards": [
+    {
+      "name": "src/",
+      "span": 3,
+      "accent": "a",
+      "rows": [
+        {
+          "name": "probes.ts",
+          "desc": {
+            "en": "Real TCP/HTTP reachability checks against",
+            "es": "Comprobaciones reales de alcanzabilidad",
+            "de": "Echte TCP/HTTP-Erreichbarkeitsprüfungen je",
+            "fr": "Vraies vérifications d'accessibilité",
+            "it": "Vere verifiche di raggiungibilità TCP/HTTP",
+            "ja": "各子サービスに対する実際の TCP/HTTP",
+            "zh": "每个子服务的真实 TCP/HTTP 可达性检",
+            "pt": "Verificações reais de acessibilidade"
+          },
+          "tree_desc": {
+            "en": "Real TCP/HTTP reachability checks against each child",
+            "es": "Comprobaciones reales de alcanzabilidad TCP/HTTP por hijo",
+            "de": "Echte TCP/HTTP-Erreichbarkeitsprüfungen je Kind",
+            "fr": "Vraies vérifications d'accessibilité TCP/HTTP par enfant",
+            "it": "Vere verifiche di raggiungibilità TCP/HTTP per figlio",
+            "ja": "各子サービスに対する実際の TCP/HTTP 到達可能性チェック",
+            "zh": "每个子服务的真实 TCP/HTTP 可达性检查",
+            "pt": "Verificações reais de acessibilidade TCP/HTTP contra cada filho"
+          }
+        },
+        {
+          "name": "command.ts",
+          "desc": {
+            "en": "Real CommandDispatcher",
+            "es": "CommandDispatcher real",
+            "de": "Echter CommandDispatcher",
+            "fr": "Vrai CommandDispatcher",
+            "it": "Vero CommandDispatcher",
+            "ja": "実際の CommandDispatcher",
+            "zh": "真实的 CommandDispatcher",
+            "pt": "CommandDispatcher real"
+          },
+          "tree_desc": {
+            "en": "Real CommandDispatcher: allowlist + backpressure + timeout",
+            "es": "CommandDispatcher real: allowlist + backpressure + timeout",
+            "de": "Echter CommandDispatcher: Allowlist + Backpressure + Timeout",
+            "fr": "Vrai CommandDispatcher : liste d'autorisation + backpressure + timeout",
+            "it": "Vero CommandDispatcher: allowlist + backpressure + timeout",
+            "ja": "実際の CommandDispatcher：アローリスト + バックプレッシャー + タイムアウト",
+            "zh": "真实的 CommandDispatcher：白名单 + 背压 + 超时",
+            "pt": "CommandDispatcher real: lista de permissões + contrapressão + tempo-limite"
+          }
+        },
+        {
+          "name": "version.ts",
+          "desc": {
+            "en": "Real package version at runtime",
+            "es": "Versión real del paquete en tiempo de",
+            "de": "Echte Paketversion zur Laufzeit",
+            "fr": "Vraie version du paquet à l'exécution",
+            "it": "Vera versione del pacchetto a runtime",
+            "ja": "package.json から読み取る実際の",
+            "zh": "运行时从 package.json 读取的真",
+            "pt": "Versão real do pacote em execução"
+          },
+          "tree_desc": {
+            "en": "Real package version at runtime, read from package.json",
+            "es": "Versión real del paquete en tiempo de ejecución, leída de package.json",
+            "de": "Echte Paketversion zur Laufzeit, gelesen aus package.json",
+            "fr": "Vraie version du paquet à l'exécution, lue depuis package.json",
+            "it": "Vera versione del pacchetto a runtime, letta da package.json",
+            "ja": "package.json から読み取る実際のパッケージバージョン(実行時)",
+            "zh": "运行时从 package.json 读取的真实包版本号",
+            "pt": "Versão real do pacote em execução, lida de package.json"
+          }
+        },
+        {
+          "name": "server.ts",
+          "desc": {
+            "en": "Express app: GET /status, POST /command",
+            "es": "App Express: GET /status, POST /command",
+            "de": "Express-App: GET /status, POST /command",
+            "fr": "App Express : GET /status, POST /command",
+            "it": "App Express: GET /status, POST /command",
+            "ja": "Express アプリ：GET /statu",
+            "zh": "Express 应用：GET /status",
+            "pt": "Aplicação Express"
+          },
+          "tree_desc": {
+            "en": "Express app: GET /status, POST /command",
+            "es": "App Express: GET /status, POST /command",
+            "de": "Express-App: GET /status, POST /command",
+            "fr": "App Express : GET /status, POST /command",
+            "it": "App Express: GET /status, POST /command",
+            "ja": "Express アプリ：GET /status、POST /command",
+            "zh": "Express 应用：GET /status、POST /command",
+            "pt": "Aplicação Express: GET /status, POST /command"
+          }
+        },
+        {
+          "name": "audit.ts",
+          "desc": {
+            "en": "Immutable audit trail of every POST /command",
+            "es": "Rastro de auditoría inmutable de cada POST",
+            "de": "Unveränderlicher Audit-Verlauf jedes POST",
+            "fr": "Piste d'audit immuable de chaque POST",
+            "it": "Traccia di audit immutabile di ogni POST",
+            "ja": "すべての POST /command の不変",
+            "zh": "每个 POST /command 的不可变审",
+            "pt": "Registo de auditoria imutável de cada POST"
+          },
+          "tree_desc": {
+            "en": "Immutable audit trail of every POST /command (who asked for what, and what happened)",
+            "es": "Rastro de auditoría inmutable de cada POST /command (quién pidió qué y qué pasó)",
+            "de": "Unveränderlicher Audit-Verlauf jedes POST /command (wer was verlangt hat und was geschah)",
+            "fr": "Piste d'audit immuable de chaque POST /command (qui a demandé quoi et ce qui s'est passé)",
+            "it": "Traccia di audit immutabile di ogni POST /command (chi ha chiesto cosa e cosa è successo)",
+            "ja": "すべての POST /command の不変な監査証跡 (誰が何を要求し、何が起きたか)",
+            "zh": "每个 POST /command 的不可变审计轨迹 (谁请求了什么、结果如何)",
+            "pt": "Registo de auditoria imutável de cada POST /command (quem pediu o quê e o que aconteceu)"
+          }
+        },
+        {
+          "name": "auth.ts",
+          "desc": {
+            "en": "Authentication of the caller of each command",
+            "es": "Autenticación de quien llama a cada orden",
+            "de": "Authentifizierung des Aufrufers jedes",
+            "fr": "Authentification de l'appelant de chaque",
+            "it": "Autenticazione di chi invia ogni comando",
+            "ja": "各コマンドの呼び出し元の認証",
+            "zh": "对每条命令调用方的认证",
+            "pt": "Autenticação de quem chama cada comando"
+          },
+          "tree_desc": {
+            "en": "Authentication of the caller of each command",
+            "es": "Autenticación de quien llama a cada orden",
+            "de": "Authentifizierung des Aufrufers jedes Befehls",
+            "fr": "Authentification de l'appelant de chaque commande",
+            "it": "Autenticazione di chi invia ogni comando",
+            "ja": "各コマンドの呼び出し元の認証",
+            "zh": "对每条命令调用方的认证",
+            "pt": "Autenticação de quem chama cada comando"
+          }
+        },
+        {
+          "name": "rateLimit.ts",
+          "desc": {
+            "en": "Rate limiting for POST /command",
+            "es": "Limitación de tasa de POST /command",
+            "de": "Ratenbegrenzung für POST /command",
+            "fr": "Limitation de débit de POST /command",
+            "it": "Limitazione di frequenza di POST /command",
+            "ja": "POST /command のレート制限",
+            "zh": "POST /command 的速率限制",
+            "pt": "Limitação de taxa de POST /command"
+          },
+          "tree_desc": {
+            "en": "Rate limiting for POST /command",
+            "es": "Limitación de tasa de POST /command",
+            "de": "Ratenbegrenzung für POST /command",
+            "fr": "Limitation de débit de POST /command",
+            "it": "Limitazione di frequenza di POST /command",
+            "ja": "POST /command のレート制限",
+            "zh": "POST /command 的速率限制",
+            "pt": "Limitação de taxa de POST /command"
+          }
+        },
+        {
+          "name": "targets.ts",
+          "desc": {
+            "en": "The format a command target must have for",
+            "es": "El formato que debe tener el destino de una",
+            "de": "Das Format, das ein Befehlsziel für sein",
+            "fr": "Le format que doit avoir la cible d'une",
+            "it": "Il formato che il bersaglio di un comando",
+            "ja": "コマンドの対象がプロトコルごとに備えるべき形",
+            "zh": "命令目标按其协议必须具有的格式",
+            "pt": "O formato que o destino de um comando deve"
+          },
+          "tree_desc": {
+            "en": "The format a command target must have for its protocol (OPC UA NodeId, MTConnect path, MQTT topic)",
+            "es": "El formato que debe tener el destino de una orden según su protocolo (NodeId de OPC UA, ruta de MTConnect, tema MQTT)",
+            "de": "Das Format, das ein Befehlsziel für sein Protokoll haben muss (OPC-UA-NodeId, MTConnect-Pfad, MQTT-Topic)",
+            "fr": "Le format que doit avoir la cible d'une commande selon son protocole (NodeId OPC UA, chemin MTConnect, sujet MQTT)",
+            "it": "Il formato che il bersaglio di un comando deve avere secondo il suo protocollo (NodeId OPC UA, percorso MTConnect, topic MQTT)",
+            "ja": "コマンドの対象がプロトコルごとに備えるべき形式 (OPC UA NodeId、MTConnect パス、MQTT トピック)",
+            "zh": "命令目标按其协议必须具有的格式 (OPC UA NodeId、MTConnect 路径、MQTT 主题)",
+            "pt": "O formato que o destino de um comando deve ter conforme o seu protocolo (NodeId do OPC UA, caminho do MTConnect, tópico MQTT)"
+          }
+        },
+        {
+          "name": "tls.ts",
+          "desc": {
+            "en": "TLS / mutual-TLS configuration",
+            "es": "Configuración de TLS y TLS mutuo",
+            "de": "Konfiguration von TLS und gegenseitigem TLS",
+            "fr": "Configuration de TLS et du TLS mutuel",
+            "it": "Configurazione di TLS e TLS reciproco",
+            "ja": "TLS と相互 TLS の設定",
+            "zh": "TLS 与双向 TLS 配置",
+            "pt": "Configuração de TLS e de TLS mútuo"
+          },
+          "tree_desc": {
+            "en": "TLS / mutual-TLS configuration",
+            "es": "Configuración de TLS y TLS mutuo",
+            "de": "Konfiguration von TLS und gegenseitigem TLS",
+            "fr": "Configuration de TLS et du TLS mutuel",
+            "it": "Configurazione di TLS e TLS reciproco",
+            "ja": "TLS と相互 TLS の設定",
+            "zh": "TLS 与双向 TLS 配置",
+            "pt": "Configuração de TLS e de TLS mútuo"
+          }
+        },
+        {
+          "name": "metrics.ts",
+          "desc": {
+            "en": "Prometheus metrics",
+            "es": "Métricas de Prometheus",
+            "de": "Prometheus-Metriken",
+            "fr": "Métriques Prometheus",
+            "it": "Metriche Prometheus",
+            "ja": "Prometheus メトリクス",
+            "zh": "Prometheus 指标 (仅当 GATE",
+            "pt": "Métricas do Prometheus"
+          },
+          "tree_desc": {
+            "en": "Prometheus metrics (GET /metrics exists only with GATEWAY_METRICS=1)",
+            "es": "Métricas de Prometheus (GET /metrics solo existe con GATEWAY_METRICS=1)",
+            "de": "Prometheus-Metriken (GET /metrics gibt es nur mit GATEWAY_METRICS=1)",
+            "fr": "Métriques Prometheus (GET /metrics n'existe qu'avec GATEWAY_METRICS=1)",
+            "it": "Metriche Prometheus (GET /metrics esiste solo con GATEWAY_METRICS=1)",
+            "ja": "Prometheus メトリクス (GET /metrics は GATEWAY_METRICS=1 のときだけ存在)",
+            "zh": "Prometheus 指标 (仅当 GATEWAY_METRICS=1 时才有 GET /metrics)",
+            "pt": "Métricas do Prometheus (GET /metrics só existe com GATEWAY_METRICS=1)"
+          }
+        }
+      ],
+      "tree_head": {
+        "en": "source code",
+        "es": "código fuente",
+        "de": "Quellcode",
+        "fr": "code source",
+        "it": "codice sorgente",
+        "ja": "ソースコード",
+        "zh": "源代码",
+        "pt": "código-fonte"
+      },
+      "sub": {
+        "en": "source code",
+        "es": "código fuente",
+        "de": "Quellcode",
+        "fr": "code source",
+        "it": "codice sorgente",
+        "ja": "ソースコード",
+        "zh": "源代码",
+        "pt": "código-fonte"
+      },
+      "columns": 2
+    },
+    {
+      "name": {
+        "en": "folders",
+        "es": "carpetas",
+        "de": "Ordner",
+        "fr": "dossiers",
+        "it": "cartelle",
+        "ja": "フォルダ",
+        "zh": "文件夹",
+        "pt": "pastas"
+      },
+      "kind": "group",
+      "span": 3,
+      "accent": "b",
+      "columns": 2,
+      "rows": [
+        {
+          "name": "tests/",
+          "desc": {
+            "en": "Real vitest suite",
+            "es": "Suite vitest real",
+            "de": "Echte vitest-Suite",
+            "fr": "Vraie suite vitest",
+            "it": "Vera suite vitest",
+            "ja": "実際の vitest スイート（probes",
+            "zh": "真实的 vitest 套件（probes",
+            "pt": "Suite vitest real"
+          },
+          "tree_desc": {
+            "en": "Real vitest suite (probes, protocol probes, server, command, auth, audit, rate limit, TLS, options)",
+            "es": "Suite vitest real (probes, sondas de protocolo, server, command, auth, auditoría, límite de tasa, TLS, opciones)",
+            "de": "Echte vitest-Suite (probes, Protokollsonden, server, command, auth, Audit, Ratenbegrenzung, TLS, Optionen)",
+            "fr": "Vraie suite vitest (probes, sondes de protocole, server, command, auth, audit, limite de débit, TLS, options)",
+            "it": "Vera suite vitest (probes, sonde di protocollo, server, command, auth, audit, limite di frequenza, TLS, opzioni)",
+            "ja": "実際の vitest スイート（probes、プロトコルプローブ、server、command、認証、監査、レート制限、TLS、オプション）",
+            "zh": "真实的 vitest 套件（probes、协议探测、server、command、认证、审计、限速、TLS、选项）",
+            "pt": "Suite vitest real (sondas, sondas de protocolo, servidor, comandos, autenticação, auditoria, limite de ritmo, TLS, opções)"
+          }
+        },
+        {
+          "name": "docs/",
+          "desc": {
+            "en": "Documentation and mapping reference",
+            "es": "Documentación y referencia de mapeo",
+            "de": "Dokumentation und Mapping-Referenz",
+            "fr": "Documentation et référence de mappage",
+            "it": "Documentazione e riferimento mappatura",
+            "ja": "ドキュメントとマッピングリファレンス",
+            "zh": "文档与映射参考",
+            "pt": "Documentação e referência de mapeamento"
+          },
+          "tree_desc": {
+            "en": "Documentation and mapping reference",
+            "es": "Documentación y referencia de mapeo",
+            "de": "Dokumentation und Mapping-Referenz",
+            "fr": "Documentation et référence de mappage",
+            "it": "Documentazione e riferimento mappatura",
+            "ja": "ドキュメントとマッピングリファレンス",
+            "zh": "文档与映射参考",
+            "pt": "Documentação e referência de mapeamento"
+          }
+        },
+        {
+          "name": "images/",
+          "desc": {
+            "en": "Media and diagrams",
+            "es": "Medios y diagramas",
+            "de": "Medien und Diagramme",
+            "fr": "Médias et diagrammes",
+            "it": "Media e diagrammi",
+            "ja": "メディアと図表",
+            "zh": "媒体与图表",
+            "pt": "Multimédia e diagramas"
+          },
+          "tree_desc": {
+            "en": "Media and diagrams",
+            "es": "Medios y diagramas",
+            "de": "Medien und Diagramme",
+            "fr": "Médias et diagrammes",
+            "it": "Media e diagrammi",
+            "ja": "メディアと図表",
+            "zh": "媒体与图表",
+            "pt": "Multimédia e diagramas"
+          }
+        },
+        {
+          "name": "scripts/",
+          "desc": {
+            "en": "Utility scripts (bump-version.mjs)",
+            "es": "Scripts de utilidad (bump-version.mjs)",
+            "de": "Utility-Skripte (bump-version.mjs)",
+            "fr": "Scripts utilitaires (bump-version.mjs)",
+            "it": "Script di utilità (bump-version.mjs)",
+            "ja": "ユーティリティスクリプト（bump-vers",
+            "zh": "实用脚本（bump-version.mjs）",
+            "pt": "Scripts utilitários (bump-version.mjs)"
+          },
+          "tree_desc": {
+            "en": "Utility scripts (bump-version.mjs)",
+            "es": "Scripts de utilidad (bump-version.mjs)",
+            "de": "Utility-Skripte (bump-version.mjs)",
+            "fr": "Scripts utilitaires (bump-version.mjs)",
+            "it": "Script di utilità (bump-version.mjs)",
+            "ja": "ユーティリティスクリプト（bump-version.mjs）",
+            "zh": "实用脚本（bump-version.mjs）",
+            "pt": "Scripts utilitários (bump-version.mjs)"
+          }
+        },
+        {
+          "name": "tools/",
+          "desc": {
+            "en": "project tools and CI checks",
+            "es": "herramientas del proyecto y comprobaciones",
+            "de": "Projektwerkzeuge und CI-Prüfungen",
+            "fr": "outils du projet et vérifications de la CI",
+            "it": "strumenti del progetto e controlli della CI",
+            "ja": "プロジェクトのツールと CI の検査",
+            "zh": "项目工具和 CI 检查",
+            "pt": "ferramentas do projeto e verificações da CI"
+          },
+          "tree_desc": {
+            "en": "project tools and CI checks",
+            "es": "herramientas del proyecto y comprobaciones del CI",
+            "de": "Projektwerkzeuge und CI-Prüfungen",
+            "fr": "outils du projet et vérifications de la CI",
+            "it": "strumenti del progetto e controlli della CI",
+            "ja": "プロジェクトのツールと CI の検査",
+            "zh": "项目工具和 CI 检查",
+            "pt": "ferramentas do projeto e verificações da CI"
+          }
+        },
+        {
+          "name": ".github/",
+          "desc": {
+            "en": "CI workflow and issue templates",
+            "es": "flujo de CI y plantillas de incidencias",
+            "de": "CI-Workflow und Issue-Vorlagen",
+            "fr": "workflow de CI et modèles de tickets",
+            "it": "workflow di CI e modelli di segnalazione",
+            "ja": "CI ワークフローと Issue テンプレート",
+            "zh": "CI 工作流和 Issue 模板",
+            "pt": "fluxo de CI e modelos de problemas"
+          }
+        }
+      ]
+    },
+    {
+      "name": {
+        "en": "project files",
+        "es": "ficheros del proyecto",
+        "de": "Projektdateien",
+        "fr": "fichiers du projet",
+        "it": "file del progetto",
+        "ja": "プロジェクトのファイル",
+        "zh": "项目文件",
+        "pt": "ficheiros do projeto"
+      },
+      "kind": "group",
+      "span": 3,
+      "accent": "c",
+      "columns": 2,
+      "rows": [
+        {
+          "name": "bump_manifest_version.py",
+          "desc": {
+            "en": "Syncs hydra-umc.project.json's version to",
+            "es": "Sincroniza la versión de",
+            "de": "Synchronisiert die Version von",
+            "fr": "Synchronise la version de",
+            "it": "Sincronizza la versione di",
+            "ja": "hydra-umc.project.json",
+            "zh": "将 hydra-umc.project.js",
+            "pt": "Sincroniza a versão de"
+          },
+          "tree_desc": {
+            "en": "Syncs hydra-umc.project.json's version to package.json's (--sync)",
+            "es": "Sincroniza la versión de hydra-umc.project.json con la de package.json (--sync)",
+            "de": "Synchronisiert die Version von hydra-umc.project.json mit der von package.json (--sync)",
+            "fr": "Synchronise la version de hydra-umc.project.json avec celle de package.json (--sync)",
+            "it": "Sincronizza la versione di hydra-umc.project.json con quella di package.json (--sync)",
+            "ja": "hydra-umc.project.json のバージョンを package.json と同期(--sync)",
+            "zh": "将 hydra-umc.project.json 的版本与 package.json 同步(--sync)",
+            "pt": "Sincroniza a versão de hydra-umc.project.json com a do package.json (--sync)"
+          }
+        },
+        {
+          "name": ".env.example",
+          "desc": {
+            "en": "Environment variable template",
+            "es": "Plantilla de variables de entorno",
+            "de": "Umgebungsvariablen-Vorlage",
+            "fr": "Modèle de variables d'environnement",
+            "it": "Modello delle variabili d'ambiente",
+            "ja": "環境変数テンプレート",
+            "zh": "环境变量模板",
+            "pt": "Modelo de variáveis de ambiente"
+          },
+          "tree_desc": {
+            "en": "Environment variable template",
+            "es": "Plantilla de variables de entorno",
+            "de": "Umgebungsvariablen-Vorlage",
+            "fr": "Modèle de variables d'environnement",
+            "it": "Modello delle variabili d'ambiente",
+            "ja": "環境変数テンプレート",
+            "zh": "环境变量模板",
+            "pt": "Modelo de variáveis de ambiente"
+          }
+        },
+        {
+          "name": "Dockerfile",
+          "desc": {
+            "en": "This service's own container image",
+            "es": "Imagen de contenedor propia de este servicio",
+            "de": "Eigenes Container-Image dieses Dienstes",
+            "fr": "Image de conteneur propre à ce service",
+            "it": "Immagine container propria di questo",
+            "ja": "本サービス自身のコンテナイメージ",
+            "zh": "本服务自身的容器镜像",
+            "pt": "A imagem de contentor deste próprio serviço"
+          },
+          "tree_desc": {
+            "en": "This service's own container image",
+            "es": "Imagen de contenedor propia de este servicio",
+            "de": "Eigenes Container-Image dieses Dienstes",
+            "fr": "Image de conteneur propre à ce service",
+            "it": "Immagine container propria di questo servizio",
+            "ja": "本サービス自身のコンテナイメージ",
+            "zh": "本服务自身的容器镜像",
+            "pt": "A imagem de contentor deste próprio serviço"
+          }
+        },
+        {
+          "name": "docker-compose.yml",
+          "desc": {
+            "en": "Brings up this Gateway + its 3 children",
+            "es": "Levanta este Gateway + sus 3 hijos juntos",
+            "de": "Startet dieses Gateway + seine 3 Kinder",
+            "fr": "Démarre ce Gateway + ses 3 enfants ensemble",
+            "it": "Avvia questo Gateway + i suoi 3 figli",
+            "ja": "本ゲートウェイとその 3 つの子プロジェクト",
+            "zh": "将本网关及其 3 个子项目一同启动",
+            "pt": "Levanta este Gateway e os seus 3 filhos em"
+          },
+          "tree_desc": {
+            "en": "Brings up this Gateway + its 3 children together",
+            "es": "Levanta este Gateway + sus 3 hijos juntos",
+            "de": "Startet dieses Gateway + seine 3 Kinder zusammen",
+            "fr": "Démarre ce Gateway + ses 3 enfants ensemble",
+            "it": "Avvia questo Gateway + i suoi 3 figli insieme",
+            "ja": "本ゲートウェイとその 3 つの子プロジェクトを一緒に起動",
+            "zh": "将本网关及其 3 个子项目一同启动",
+            "pt": "Levanta este Gateway e os seus 3 filhos em conjunto"
+          }
+        },
+        {
+          "name": "CHANGELOG.md",
+          "desc": {
+            "en": "what changed in each version",
+            "es": "qué cambió en cada versión",
+            "de": "was sich in jeder Version geändert hat",
+            "fr": "ce qui a changé à chaque version",
+            "it": "cosa è cambiato in ogni versione",
+            "ja": "各バージョンの変更点",
+            "zh": "每个版本的变更",
+            "pt": "o que mudou em cada versão"
+          }
+        },
+        {
+          "name": "build-test.sh",
+          "desc": {
+            "en": "non-mutating build check",
+            "es": "comprobación de compilación sin cambios",
+            "de": "Build-Prüfung ohne Änderungen",
+            "fr": "vérification de build sans modification",
+            "it": "controllo di build senza modifiche",
+            "ja": "変更を伴わないビルド確認",
+            "zh": "不修改内容的构建检查",
+            "pt": "verificação de compilação sem alterações"
+          }
+        },
+        {
+          "name": "build.sh",
+          "desc": {
+            "en": "builds and checks; never changes the version",
+            "es": "compila y comprueba; nunca cambia la versión",
+            "de": "baut und prüft; ändert nie die Version",
+            "fr": "construit et vérifie ; ne change jamais la version",
+            "it": "compila e controlla; non cambia mai la versione",
+            "ja": "ビルドと検査。バージョンは変更しない",
+            "zh": "构建并检查；从不改变版本",
+            "pt": "compila e verifica; nunca muda a versão"
+          }
+        },
+        {
+          "name": "dev.sh",
+          "desc": {
+            "en": "development mode",
+            "es": "modo de desarrollo",
+            "de": "Entwicklungsmodus",
+            "fr": "mode développement",
+            "it": "modalità di sviluppo",
+            "ja": "開発モード",
+            "zh": "开发模式",
+            "pt": "modo de desenvolvimento"
+          }
+        },
+        {
+          "name": "hydra-umc.project.json",
+          "desc": {
+            "en": "manifest: version, maturity, family",
+            "es": "manifiesto: versión, madurez, familia",
+            "de": "Manifest: Version, Reifegrad, Familie",
+            "fr": "manifeste : version, maturité, famille",
+            "it": "manifesto: versione, maturità, famiglia",
+            "ja": "マニフェスト：バージョン、成熟度、ファミリー",
+            "zh": "清单：版本、成熟度、系列",
+            "pt": "manifesto: versão, maturidade, família"
+          }
+        },
+        {
+          "name": "package.json",
+          "desc": {
+            "en": "package metadata and scripts",
+            "es": "metadatos y scripts del paquete",
+            "de": "Paketmetadaten und Skripte",
+            "fr": "métadonnées et scripts du paquet",
+            "it": "metadati e script del pacchetto",
+            "ja": "パッケージのメタデータとスクリプト",
+            "zh": "包的元数据和脚本",
+            "pt": "metadados e scripts do pacote"
+          }
+        },
+        {
+          "name": "test.sh",
+          "desc": {
+            "en": "runs the tests",
+            "es": "ejecuta las pruebas",
+            "de": "führt die Tests aus",
+            "fr": "lance les tests",
+            "it": "esegue i test",
+            "ja": "テストを実行",
+            "zh": "运行测试",
+            "pt": "executa os testes"
+          }
+        }
+      ]
+    }
+  ]
+}

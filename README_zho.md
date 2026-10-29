@@ -1,3 +1,9 @@
+<!-- =============================================================================
+HYDRA-UMC-GATEWAY-INDUSTRIAL - Single status surface in front of the industrial bridges
+Copyright (C) JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
+GPL-3.0-or-later - see LICENSE
+============================================================================= -->
+
 <p align="center">
   <img src="images/HYDRA_UMC_BANNER.svg" alt="HYDRA-UMC-GATEWAY-INDUSTRIAL banner" width="100%">
 </p>
@@ -9,15 +15,20 @@
 ### 🏭 面向工厂标准的工业 4.0 互操作性桥梁
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Licencia-GPL%203.0--or--later-blue.svg" alt="GPL 3.0 or later">
-  <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Industry 4.0">
-  <img src="https://img.shields.io/badge/Security-TLS%2FmTLS%20%E5%8F%AF%E9%80%89%EF%BC%8C%E9%BB%98%E8%AE%A4%E5%85%B3%E9%97%AD-orange.svg" alt="安全：TLS 与双向 TLS 为可选项，默认关闭">
+  <img src="https://img.shields.io/badge/License-GPL%203.0--or--later-blue.svg" alt="GPL 3.0 or later">
+  <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
+  <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
+  <img src="https://img.shields.io/badge/Tests-127%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Version-0.1.6-0f6cbd.svg" alt="Version">
+  <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
 
 ---
 
 > **安全与安防现状:**本生态系统不是经认证的安全系统。目前尚无硬件 E-STOP 通路,没有由固件强制执行的限位或联锁,也没有经过验证的运动指令;固件映像使用 CRC32 和共享密钥的 HMAC-SHA256 校验,而非非对称签名;TLS 与双向 TLS 均为可选项,默认关闭;自制电路板尚未组装或测试。在依赖此处任何说法来保障人身安全之前,请先阅读[安全基线](https://github.com/JuanenRac/HYDRA-UMC-DOCS/blob/main/docs/SECURITY_BASELINE.md)和[威胁模型](https://github.com/JuanenRac/HYDRA-UMC-DOCS/blob/main/docs/THREAT_MODEL.md)。
+
+---
 
 ## 📋 速览
 
@@ -25,9 +36,12 @@
 |---|---|
 | 版本 | `0.1.6` |
 | 成熟度 | 可用 |
+| 测试 | 127 (`npm test`) |
 | 技术栈 | Node.js / Express / real TCP/HTTP reachability probes |
 | 目标 | HYDRA-UMC 工作单元的 Raspberry Pi CM5 |
 | 真实硬件 | 尚未：此版本没有在真实硬件上运行的记录 |
+
+**跳转：** [概述](#-概述) · [架构](#-架构) · [快速开始](#-快速开始) · [测试](#-测试) · [仓库结构](#-仓库结构) · [相关项目](#-相关项目)
 
 ## 🚦 项目状态
 
@@ -38,11 +52,11 @@
 | 领域 | 状态 | 在这里的含义 |
 |---|---|---|
 | 软件 | 🟡 | 主要用途可用；上面的诚实性检查列出了仍然缺少的内容 |
-| 测试 | 🟠 | 此仓库尚未记录测试数量 |
+| 测试 | 🟢 | 127 项自动测试，每次变更都会运行 |
 | 真实硬件 | 🔴 | 尚未：此版本没有在真实硬件上运行的记录 |
 | 文档 | 🟢 | 八种语言的 README，每次变更都会与清单核对 |
 
-## 1. 🛠️ 技术概述
+## 🎯 概述
 
 **HYDRA-UMC-GATEWAY-INDUSTRIAL** 是 HYDRA-UMC 生态系统与外部工业标准
 之间的通信桥梁。它使微工厂能够与第三方 PLC、SCADA 系统和基于云的
@@ -66,9 +80,18 @@ IIoT 平台进行交互。
 
 **诚实说明——今天实际运行的内容：** `POST /command { protocol, operation, target }` 是真实的：该操作必须已明确列入其协议的白名单（否则返回 `403`——v0 只允许读取/发布类操作，不允许任何会写入正在运行的 PLC 的操作），同时运行的命令数量不超过一个上限（超出则返回 `429`），未在规定时间内完成的命令会被报告为超时（`504`）而不是被无限期挂起。默认的执行路径复用了本项目自身真实的可达性探测——诚实地说明它还没有执行真正的 OPC-UA/MQTT/MTConnect 协议层写操作，因为这三个子服务目前也都还没有暴露真正的命令 API。具体已交付内容请参见 `CHANGELOG.md`。
 
----
+## 🧩 在 HYDRA-UMC 中的角色
 
-## 2. 🔄 网关架构
+**HYDRA-UMC-GATEWAY-INDUSTRIAL** 是 `HYDRA-UMC-OPCUA-SERVER`、`HYDRA-UMC-MQTT-BROKER` 和 `HYDRA-UMC-MTCONNECT-ADAPTER` 前面唯一的状态窗口：它检查各自是否应答，并且只接受效果仅为可达性检查的允许列表命令。它从不移动机器。
+
+## 🏛️ 架构
+
+<p align="center">
+  <img src="images/architecture.svg" alt="HYDRA-UMC-GATEWAY-INDUSTRIAL architecture" width="100%">
+</p>
+
+<details>
+<summary>图表的文本版本（Mermaid）</summary>
 
 ```mermaid
 flowchart LR
@@ -81,9 +104,9 @@ flowchart LR
     MT --> EXT
 ```
 
----
+</details>
 
-## 3. 🧱 架构与设计决策
+### 架构与设计决策
 
 * **为何本项目是其 3 个子项目的集成父项目，而非平级项目。** HYDRA-UMC-OPCUA-SERVER、HYDRA-UMC-MQTT-BROKER 和 HYDRA-UMC-MTCONNECT-ADAPTER 都将*同一个*底层的 HYDRA-UMC-SERVER 状态转换为 3 种不同的工业协议——将共享的路由/认证逻辑集中于一处，可避免出现 3 个独立的、可能互不一致的同一状态转换实现。
 * **为何是 3 个独立的协议适配器，而非一个大而全的网关。** OPC-UA、MQTT 和 MTConnect 在结构上截然不同（地址空间 vs. 发布/订阅主题 vs. XML 设备/代理流）——每个协议对应一个进程，意味着一个缓慢或损坏的 MQTT 客户端永远不会影响 OPC-UA 客户端，并且每个协议都可以按部署独立启用/禁用。
@@ -95,51 +118,7 @@ flowchart LR
 * **为何 `CommandDispatcher.dispatch()` 中授权检查先于背压检查。** 无论网关当前有多忙，一个未经授权的命令都必须以同样的方式被拒绝——如果先检查容量，一个不被允许的操作有时可能因为恰好有空闲槽位而「意外通过」（accepted），有时又可能因为槽位已满而被读作「只是太忙」，从而通过一个本应纯粹基于授权的决策泄露出网关负载的时序信息。
 * **为何默认命令执行器复用可达性探测，而不是一个永远成功的桩实现。** `src/probes.ts` 已经能真实回答「这个子服务是否真的在那里」——复用它意味着 `POST /command` 面对一个已经下线的子服务时会诚实地失败（`502 downstream_unreachable`），而不是对一个根本不可能送达任何地方的命令报告 `accepted`。
 
----
-
-## 📂 目录结构
-
-```text
-HYDRA-UMC-GATEWAY-INDUSTRIAL/
-├── src/
-│   ├── probes.ts        # 每个子服务的真实 TCP/HTTP 可达性检查
-│   ├── command.ts        # 真实的 CommandDispatcher：白名单 + 背压 + 超时
-│   ├── version.ts        # 运行时从 package.json 读取的真实包版本号
-│   ├── server.ts         # Express 应用：GET /status、POST /command
-│   ├── audit.ts          # 每个 POST /command 的不可变审计轨迹 (谁请求了什么、结果如何)
-│   ├── auth.ts           # 对每条命令调用方的认证
-│   ├── rateLimit.ts      # POST /command 的速率限制
-│   ├── targets.ts        # 命令目标按其协议必须具有的格式 (OPC UA NodeId、MTConnect 路径、MQTT 主题)
-│   ├── tls.ts            # TLS 与双向 TLS 配置
-│   └── metrics.ts        # Prometheus 指标 (仅当 GATEWAY_METRICS=1 时才有 GET /metrics)
-├── tests/               # 真实的 vitest 套件（probes、协议探测、server、command、认证、审计、限速、TLS、选项）
-├── docs/               # 文档与映射参考
-├── dist/               # 编译输出（npm run build）
-├── images/             # 媒体与图表
-├── scripts/            # 实用脚本（bump-version.mjs）
-├── tools/
-│   ├── build_test.py    # 不递增版本号的构建检查
-│   ├── ci_validate.py   # CI 使用的清单/CHANGELOG/文档校验
-│   ├── verify_compose.py # 对 docker-compose.yml 和 Dockerfile 的静态检查 (无需 Docker)
-│   ├── _doc_policy.py   # 家族共享的文档规则 (HYDRA-UMC-SDK 的副本,保持同步)
-│   ├── _readme_parity.py # 检查八个 README 结构一致 (HYDRA-UMC-SDK 的副本,保持同步)
-│   └── hydra_project_tool.py # 每个仓库相同的命令: validate、test、ci、version、status、bump
-├── bump_manifest_version.py # 将 hydra-umc.project.json 的版本与 package.json 同步(--sync)
-├── .env.example         # 环境变量模板
-├── build.sh/.bat        # 然后执行 npm run build
-├── build-test.sh/.bat   # 不递增版本号的构建检查
-├── dev.sh/.bat           # 无需构建步骤,直接从源代码运行服务器
-├── Dockerfile           # 本服务自身的容器镜像
-├── docker-compose.yml   # 将本网关及其 3 个子项目一同启动
-└── README.md
-```
-
-纯网络服务，没有自己专属的硬件——`hardware/`、`firmware/` 和 `os/`
-已根据仓库结构策略从项目模板中省略。
-
----
-
-## 🐳 集成 3 个子桥接服务
+### 集成 3 个子桥接服务
 
 这是一个真实的集成仓库，而不仅仅是文档——`docker-compose.yml` 会将本
 网关与其 3 个子项目（**HYDRA-UMC-OPCUA-SERVER**、
@@ -158,9 +137,24 @@ docker compose up --build
 `GET http://localhost:8000/status` 会报告本网关自身的版本以及它预期
 能够连接到的子项目。
 
----
+## 🚀 快速开始
 
-## 🛠️ 开发环境
+需要 Node.js 20 或更高版本及 npm。
+
+```bash
+npm install
+npm test
+npm run build
+npm start
+```
+
+## 🧪 测试
+
+运行 `npm test` 会执行 127 个自动测试。 不需要硬件，也不需要这台机器以外的任何东西。
+
+CI 运行 `HYDRA_UMC_CI=1 python tools/ci_validate.py`，检查清单、文档、八个 README 和图片。
+
+## 🏗️ 构建与发布
 
 ### 前提条件
 - [Node.js](https://nodejs.org/)（建议 v20 或更高版本）
@@ -209,19 +203,65 @@ curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -
 
 ### 版本管理
 `npm run build` 只负责打包服务器，绝不会更改版本；`python tools/hydra_project_tool.py bump` 才会提升它（通过 `bump_manifest_version.py`）
-——一种十进制"里程表"方案：每次 bump patch +1，超过 9 时进位到 minor
+
 （minor 超过 9 时进位到 major），而不会到达两位数段（`0.0.9` ->
 `0.1.0`，而非 `0.0.10`）。
 
----
+## 📂 仓库结构
 
-## 🚀 路线图
+<p align="center">
+  <img src="images/repository-structure.svg" alt="Repository structure of HYDRA-UMC-GATEWAY-INDUSTRIAL" width="100%">
+</p>
+
+<details>
+<summary>目录树的文本版本</summary>
+
+```text
+HYDRA-UMC-GATEWAY-INDUSTRIAL/
+├── src/                       源代码
+│   ├── probes.ts              每个子服务的真实 TCP/HTTP 可达性检查
+│   ├── command.ts             真实的 CommandDispatcher：白名单 + 背压 + 超时
+│   ├── version.ts             运行时从 package.json 读取的真实包版本号
+│   ├── server.ts              Express 应用：GET /status、POST /command
+│   ├── audit.ts               每个 POST /command 的不可变审计轨迹 (谁请求了什么、结果如何)
+│   ├── auth.ts                对每条命令调用方的认证
+│   ├── rateLimit.ts           POST /command 的速率限制
+│   ├── targets.ts             命令目标按其协议必须具有的格式 (OPC UA NodeId、MTConnect 路径、MQTT 主题)
+│   ├── tls.ts                 TLS 与双向 TLS 配置
+│   └── metrics.ts             Prometheus 指标 (仅当 GATEWAY_METRICS=1 时才有 GET /metrics)
+├── tests/                     真实的 vitest 套件（probes、协议探测、server、command、认证、审计、限速、TLS、选项）
+├── docs/                      文档与映射参考
+├── images/                    媒体与图表
+├── scripts/                   实用脚本（bump-version.mjs）
+├── tools/                     项目工具和 CI 检查
+├── .github/                   CI 工作流和 Issue 模板
+├── bump_manifest_version.py   将 hydra-umc.project.json 的版本与 package.json 同步(--sync)
+├── .env.example               环境变量模板
+├── Dockerfile                 本服务自身的容器镜像
+├── docker-compose.yml         将本网关及其 3 个子项目一同启动
+├── CHANGELOG.md               每个版本的变更
+├── build-test.sh              不修改内容的构建检查
+├── build.sh                   构建并检查；从不改变版本
+├── dev.sh                     开发模式
+├── hydra-umc.project.json     清单：版本、成熟度、系列
+├── package.json               包的元数据和脚本
+└── test.sh                    运行测试
+```
+
+</details>
+
+## 🗺️ 路线图与已知限制
+
+**当前已知限制**
+
 * **第一阶段：** OPC-UA 发布/订阅实现，用于高速数据交换和传统协议桥接。
 * **第二阶段：** 用于海量 IoT 设备管理和高并发的 MQTT Broker 集群。
 * **第三阶段：** MTConnect 适配器支持，用于多厂商 CNC 和 PLC 机械集成。
 * **第四阶段：** 工业网关 完整的 ISO-27001 网络安全合规性以及 Profinet 软件适配器支持。
 
----
+## 🌍 语言
+
+本 README 和仓库文档提供八种语言：英语、西班牙语、德语、法语、意大利语、日语、中文和葡萄牙语（葡萄牙）。它们同时编写，并由 CI 检查八个文件拥有相同的章节和相同的链接。 本仓库没有自己的界面或消息目录，因此没有需要翻译的界面文字。
 
 ## 🔗 相关项目
 
@@ -312,22 +352,27 @@ curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -
 - **[HYDRA-UMC-OPS-AGENT](https://github.com/JuanenRac/HYDRA-UMC-OPS-AGENT)** — 维护事件协调器：一个低权限的边缘角色采集经过脱敏的库存/健康快照，一个控制面角色以只读方式渲染它，并请求某个 AI 提供方给出诊断建议——从不应用补丁，也从不部署任何内容。
 - **[HYDRA-UMC-DEV-SERVER](https://github.com/JuanenRac/HYDRA-UMC-DEV-SERVER)** — 可复现的开发主机（Raspberry Pi 5 / CM5），保存整个生态系统的源代码，并在持久队列下运行有界的构建/测试任务；这是专用的开发角色，明确区别于运行中的 CM5。
 
+## 📚 文档
 
----
+更多阅读：
 
-## 📚 文档与社区
+* **[docs/API.md](docs/API.md)** —— 真实的 HTTP API 参考文档：快速存活探测 `GET /health`、`GET /status` 响应的每个字段、`POST /command` 的 `403`/`429`/`504`/`502` 边界，以及每个配置用环境变量，均直接从 `src/server.ts`/`src/probes.ts` 整理而成。
+* [生态系统的安全基线](https://github.com/JuanenRac/HYDRA-UMC-DOCS/blob/main/docs/SECURITY_BASELINE.md)
+* [生态系统的威胁模型](https://github.com/JuanenRac/HYDRA-UMC-DOCS/blob/main/docs/THREAT_MODEL.md)
+* [本仓库的更新日志](CHANGELOG.md)
+* [本仓库的许可证](LICENSE.md)
 
-- **[docs/API.md](docs/API.md)** —— 真实的 HTTP API 参考文档：快速存活探测 `GET /health`、`GET /status` 响应的每个字段、`POST /command` 的 `403`/`429`/`504`/`502` 边界，以及每个配置用环境变量，均直接从 `src/server.ts`/`src/probes.ts` 整理而成。
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** —— 提交 Pull Request 所需的技术栈和编码规范。
-- **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** —— 本社区所期望的行为准则。
-- **[SECURITY.md](SECURITY.md)** —— 如何报告漏洞，以及本项目真实的安全关注重点。
-- **[SUPPORT.md](SUPPORT.md)** —— 在哪里提问和报告缺陷。
-- **[LICENSE.md](LICENSE.md)** —— 本项目自身的许可证。
+## 🤝 参与贡献与社区
+
+* 提交 pull request 之前，请运行 `HYDRA_UMC_CI=1 py -3 tools/ci_validate.py`（或 `HYDRA_UMC_CI=1 python3 tools/ci_validate.py`）：它必须输出 `CI_VALIDATION=PASS`。此检查不要运行 `build.sh` 或 `build.bat`；构建不是检查。
+* 八个 README 由 HYDRA-UMC-DOCS 中的同一个源生成；请勿手工编辑。修改源文件，再用 `tools/make_readmes.py` 重新生成。
+* 不要在 README 中声称尚未运行过的内容：属实时请写“仅模拟”或“尚未在硬件上试过”。
+* 请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)、[行为准则](CODE_OF_CONDUCT.md)、[SECURITY.md](SECURITY.md) 和 [SUPPORT.md](SUPPORT.md)。
 
 ## 👤 作者
-**JuanenRac** (Electro Hobby 3D)
-📧 electrohobby3d@gmail.com
-📺 [youtube.com/@electrohobby3d](https://youtube.com/@electrohobby3d)
+
+**JuanenRac (Electro Hobby 3D)** · electrohobby3d@gmail.com
 
 ## 📜 许可证
-GPL-3.0-or-later —— 详见 LICENSE。
+
+GPL-3.0-or-later - [LICENSE](LICENSE).

@@ -1,0 +1,146 @@
+{
+  "repo": "HYDRA-UMC-GATEWAY-INDUSTRIAL",
+  "ecosystem": "hydra",
+  "tagline": "One status surface and an allow-listed reachability command in front of three industrial services.",
+  "description": "HYDRA-UMC-GATEWAY-INDUSTRIAL answers GET /health and GET /status, probes the OPC-UA server, the MQTT broker and the MTConnect adapter, and accepts an allow-listed command that only checks reachability.",
+  "columns": [
+    "WHO USES IT",
+    "THIS REPOSITORY",
+    "WHAT IT PROBES"
+  ],
+  "nodes": [
+    {
+      "id": "mon",
+      "column": 0,
+      "level": "external",
+      "title": "Monitoring tools",
+      "lines": [
+        "read /health and /status",
+        "with a bearer token"
+      ]
+    },
+    {
+      "id": "opc",
+      "column": 2,
+      "level": "external",
+      "title": "OPCUA-SERVER",
+      "lines": [
+        "port 4840"
+      ]
+    },
+    {
+      "id": "mqtt",
+      "column": 2,
+      "level": "external",
+      "title": "MQTT-BROKER",
+      "lines": [
+        "port 1883"
+      ]
+    },
+    {
+      "id": "mtc",
+      "column": 2,
+      "level": "external",
+      "title": "MTCONNECT-ADAPTER",
+      "lines": [
+        "port 5000"
+      ],
+      "title_size": 12
+    },
+    {
+      "id": "srv",
+      "column": 1,
+      "level": "tested",
+      "title": "server.ts",
+      "lines": [
+        "HTTP routes, limits, audit",
+        "log of every request"
+      ],
+      "code": [
+        "src/server.ts",
+        "src/audit.ts"
+      ]
+    },
+    {
+      "id": "auth",
+      "column": 1,
+      "level": "tested",
+      "title": "auth.ts / tls.ts",
+      "lines": [
+        "bearer token, optional TLS,",
+        "rate limit"
+      ],
+      "code": [
+        "src/auth.ts",
+        "src/tls.ts",
+        "src/rateLimit.ts"
+      ]
+    },
+    {
+      "id": "cmd",
+      "column": 1,
+      "level": "tested",
+      "title": "command.ts",
+      "lines": [
+        "allow-listed operations,",
+        "unknown ones rejected"
+      ],
+      "code": [
+        "src/command.ts"
+      ]
+    },
+    {
+      "id": "probe",
+      "column": 1,
+      "level": "tested",
+      "title": "probes.ts",
+      "lines": [
+        "TCP and HTTP probes,",
+        "502 when a target is down"
+      ],
+      "code": [
+        "src/probes.ts",
+        "src/targets.ts"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "mon",
+      "to": "srv",
+      "level": "tested",
+      "label": "GET"
+    },
+    {
+      "from": "srv",
+      "to": "auth",
+      "level": "tested"
+    },
+    {
+      "from": "srv",
+      "to": "cmd",
+      "level": "tested"
+    },
+    {
+      "from": "cmd",
+      "to": "probe",
+      "level": "tested"
+    },
+    {
+      "from": "probe",
+      "to": "opc",
+      "level": "external"
+    },
+    {
+      "from": "probe",
+      "to": "mqtt",
+      "level": "external"
+    },
+    {
+      "from": "probe",
+      "to": "mtc",
+      "level": "external"
+    }
+  ],
+  "footer": "The three services are probed over the network; none of them has been tried against a real SCADA."
+}

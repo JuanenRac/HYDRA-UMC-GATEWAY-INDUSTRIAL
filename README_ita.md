@@ -1,3 +1,9 @@
+<!-- =============================================================================
+HYDRA-UMC-GATEWAY-INDUSTRIAL - Single status surface in front of the industrial bridges
+Copyright (C) JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
+GPL-3.0-or-later - see LICENSE
+============================================================================= -->
+
 <p align="center">
   <img src="images/HYDRA_UMC_BANNER.svg" alt="HYDRA-UMC-GATEWAY-INDUSTRIAL banner" width="100%">
 </p>
@@ -9,15 +15,20 @@
 ### 🏭 Bridge di interoperabilità Industry 4.0 per standard di fabbrica
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Licenza-GPL%203.0--or--later-blue.svg" alt="GPL 3.0 or later">
-  <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Industry 4.0">
-  <img src="https://img.shields.io/badge/Sicurezza-TLS%20e%20mTLS%20opzionali%2C%20disattivati%20di%20default-orange.svg" alt="Sicurezza: TLS e TLS reciproco sono opzionali e disattivati per impostazione predefinita">
-  <img src="https://img.shields.io/badge/Protocolli-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
+  <img src="https://img.shields.io/badge/License-GPL%203.0--or--later-blue.svg" alt="GPL 3.0 or later">
+  <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
+  <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
+  <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
+  <img src="https://img.shields.io/badge/Tests-127%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Version-0.1.6-0f6cbd.svg" alt="Version">
+  <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
 
 ---
 
 > **Stato di sicurezza (safety e security):** questo ecosistema non è un sistema di sicurezza certificato. Non esiste ancora un percorso E-STOP hardware, né limiti o interblocchi imposti dal firmware, né un comando di movimento verificato; le immagini firmware sono controllate con CRC32 e un HMAC-SHA256 a chiave condivisa, non con una firma asimmetrica; TLS e TLS reciproco sono opzionali e disattivati per impostazione predefinita; nessuna scheda propria è stata ancora assemblata o provata. Leggi la [base di sicurezza](https://github.com/JuanenRac/HYDRA-UMC-DOCS/blob/main/docs/SECURITY_BASELINE.md) e il [modello delle minacce](https://github.com/JuanenRac/HYDRA-UMC-DOCS/blob/main/docs/THREAT_MODEL.md) prima di fidarti di qualsiasi affermazione qui per la sicurezza di una persona.
+
+---
 
 ## 📋 In breve
 
@@ -25,9 +36,12 @@
 |---|---|
 | Versione | `0.1.6` |
 | Maturità | Funzionale |
+| Test | 127 (`npm test`) |
 | Tecnologia | Node.js / Express / real TCP/HTTP reachability probes |
 | Destinazione | Il Raspberry Pi CM5 di una cella HYDRA-UMC |
 | Su hardware reale | Non ancora: per questa versione non risulta alcuna esecuzione su hardware reale |
+
+**Vai a:** [Panoramica](#-panoramica) · [Architettura](#-architettura) · [Avvio rapido](#-avvio-rapido) · [Test](#-test) · [Struttura del repository](#-struttura-del-repository) · [Progetti correlati](#-progetti-correlati)
 
 ## 🚦 Stato del progetto
 
@@ -38,11 +52,11 @@ Ogni riga è una parte di questo repository e il semaforo dice a che punto è og
 | Area | Stato | Cosa significa qui |
 |---|---|---|
 | Software | 🟡 | Funziona per il suo scopo principale; la verifica di onestà qui sopra elenca ciò che manca ancora |
-| Test | 🟠 | Per questo repository non è ancora registrato il numero di test |
+| Test | 🟢 | 127 test automatici, eseguiti a ogni modifica |
 | Hardware reale | 🔴 | Non ancora: per questa versione non risulta alcuna esecuzione su hardware reale |
 | Documentazione | 🟢 | README in otto lingue, verificato rispetto al manifesto a ogni modifica |
 
-## 1. 🛠️ PANORAMICA TECNICA
+## 🎯 Panoramica
 
 **HYDRA-UMC-GATEWAY-INDUSTRIAL** è il ponte di comunicazione tra l'ecosistema HYDRA-UMC e gli standard industriali esterni. Consente alla micro-fabbrica di interagire con PLC di terze parti, sistemi SCADA e piattaforme IIoT basate su cloud.
 
@@ -61,9 +75,18 @@ Oggi è l'unica superficie di stato davanti al server OPC-UA, al broker MQTT e a
 
 **Verifica di onestà - cosa funziona davvero oggi:** `POST /command { protocol, operation, target }` è reale: l'operazione deve essere esplicitamente in allowlist per il suo protocollo (`403` altrimenti - v0 permette solo operazioni di tipo lettura/pubblicazione, nulla che scriva su un PLC in funzione), non vengono eseguiti più di un numero limitato di comandi alla volta (`429` oltre quel limite), e un comando che non si risolve in tempo viene segnalato come scaduto (`504`) invece di restare in sospeso. Il percorso di esecuzione predefinito riutilizza le sonde di raggiungibilità reali di questo progetto - onesto sul fatto che non esegue ancora una vera scrittura a livello di protocollo OPC-UA/MQTT/MTConnect, dato che nessuno dei tre figli espone ancora una vera API di comando. Vedi `CHANGELOG.md` per ciò che è stato consegnato esattamente.
 
----
+## 🧩 Ruolo in HYDRA-UMC
 
-## 2. 🔄 ARCHITETTURA DEL GATEWAY
+**HYDRA-UMC-GATEWAY-INDUSTRIAL** è l'unica superficie di stato davanti a `HYDRA-UMC-OPCUA-SERVER`, `HYDRA-UMC-MQTT-BROKER` e `HYDRA-UMC-MTCONNECT-ADAPTER`: verifica che ognuno risponda e accetta solo un insieme ammesso di comandi il cui effetto è un controllo di raggiungibilità. Non muove mai una macchina.
+
+## 🏛️ Architettura
+
+<p align="center">
+  <img src="images/architecture.svg" alt="HYDRA-UMC-GATEWAY-INDUSTRIAL architecture" width="100%">
+</p>
+
+<details>
+<summary>Versione testuale del diagramma (Mermaid)</summary>
 
 ```mermaid
 flowchart LR
@@ -76,9 +99,9 @@ flowchart LR
     MT --> EXT
 ```
 
----
+</details>
 
-## 3. 🧱 ARCHITETTURA E DECISIONI DI PROGETTAZIONE
+### ARCHITETTURA E DECISIONI DI PROGETTAZIONE
 
 * **Perché è il genitore di integrazione, non un pari, dei suoi 3 figli.** HYDRA-UMC-OPCUA-SERVER, HYDRA-UMC-MQTT-BROKER e HYDRA-UMC-MTCONNECT-ADAPTER traducono tutti lo STESSO stato sottostante di HYDRA-UMC-SERVER in 3 protocolli industriali diversi - possedere il routing/l'autenticazione condivisi in un unico posto evita 3 traduzioni indipendenti e potenzialmente incoerenti dello stesso stato.
 * **Perché 3 adattatori di protocollo separati, non un gateway che fa tutto.** OPC-UA, MQTT e MTConnect sono strutturalmente diversi (address space contro topic pub/sub contro flussi XML device/agent) - un processo per protocollo significa che un client MQTT lento o rotto non influenza mai quello OPC-UA, e ciascuno può essere abilitato/disabilitato indipendentemente per deployment.
@@ -90,51 +113,7 @@ flowchart LR
 * **Perché l'autorizzazione viene controllata prima del backpressure in `CommandDispatcher.dispatch()`.** Un comando non autorizzato deve essere rifiutato sempre allo stesso modo indipendentemente da quanto sia occupato il gateway in quel momento - se la capacità fosse controllata per prima, un'operazione non permessa potrebbe a volte passare come "accepted" (uno slot era libero) o a volte apparire come "solo occupato" (non lo era), facendo trapelare informazioni sul carico del gateway attraverso quella che dovrebbe essere una decisione puramente di autorizzazione.
 * **Perché l'esecutore di comandi predefinito riutilizza le sonde di raggiungibilità invece di uno stub che ha sempre successo.** `src/probes.ts` risponde già davvero a "questo figlio è davvero lì" - riutilizzarlo significa che `POST /command` fallisce onestamente (`502 downstream_unreachable`) contro un figlio spento, invece di riportare `accepted` per un comando che non sarebbe mai potuto arrivare da nessuna parte.
 
----
-
-## 📂 STRUTTURA DELLE CARTELLE
-
-```text
-HYDRA-UMC-GATEWAY-INDUSTRIAL/
-├── src/
-│   ├── probes.ts        # Vere verifiche di raggiungibilità TCP/HTTP per figlio
-│   ├── command.ts        # Vero CommandDispatcher: allowlist + backpressure + timeout
-│   ├── version.ts        # Vera versione del pacchetto a runtime, letta da package.json
-│   ├── server.ts         # App Express: GET /status, POST /command
-│   ├── audit.ts          # Traccia di audit immutabile di ogni POST /command (chi ha chiesto cosa e cosa è successo)
-│   ├── auth.ts           # Autenticazione di chi invia ogni comando
-│   ├── rateLimit.ts      # Limitazione di frequenza di POST /command
-│   ├── targets.ts        # Il formato che il bersaglio di un comando deve avere secondo il suo protocollo (NodeId OPC UA, percorso MTConnect, topic MQTT)
-│   ├── tls.ts            # Configurazione di TLS e TLS reciproco
-│   └── metrics.ts        # Metriche Prometheus (GET /metrics esiste solo con GATEWAY_METRICS=1)
-├── tests/               # Vera suite vitest (probes, sonde di protocollo, server, command, auth, audit, limite di frequenza, TLS, opzioni)
-├── docs/               # Documentazione e riferimento mappatura
-├── dist/               # Output compilato (npm run build)
-├── images/             # Media e diagrammi
-├── scripts/            # Script di utilità (bump-version.mjs)
-├── tools/
-│   ├── build_test.py    # Controllo build senza versionamento
-│   ├── ci_validate.py   # Validazione manifest/CHANGELOG/docs usata dalla CI
-│   ├── verify_compose.py # Controlli statici di docker-compose.yml e del Dockerfile, senza Docker
-│   ├── _doc_policy.py   # Regole di documentazione condivise dalla famiglia (copia di quella di HYDRA-UMC-SDK, mantenuta sincronizzata)
-│   ├── _readme_parity.py # Verifica che gli otto README abbiano la stessa struttura (copia di quella di HYDRA-UMC-SDK, mantenuta sincronizzata)
-│   └── hydra_project_tool.py # Gli stessi comandi in ogni repository: validate, test, ci, version, status, bump
-├── bump_manifest_version.py # Sincronizza la versione di hydra-umc.project.json con quella di package.json (--sync)
-├── .env.example         # Modello delle variabili d'ambiente
-├── build.sh/.bat        # Aggiorna la versione, poi npm run build
-├── build-test.sh/.bat   # Controllo build senza versionamento
-├── dev.sh/.bat           # Esegue il server direttamente dal codice sorgente, senza build
-├── Dockerfile           # Immagine container propria di questo servizio
-├── docker-compose.yml   # Avvia questo Gateway + i suoi 3 figli insieme
-└── README.md
-```
-
-Servizio di rete puro, senza hardware proprio - `hardware/`, `firmware/`
-e `os/` sono omesse secondo la politica della struttura del repository.
-
----
-
-## 🐳 INTEGRAZIONE DEI 3 BRIDGE FIGLI
+### INTEGRAZIONE DEI 3 BRIDGE FIGLI
 
 Questo è un vero repo di integrazione, non solo documentazione -
 `docker-compose.yml` avvia questo Gateway insieme ai suoi tre figli
@@ -155,9 +134,24 @@ MTConnect su `5000`. `GET http://localhost:8000/status` riporta la
 versione propria del Gateway e quali figli si aspetta di poter
 raggiungere.
 
----
+## 🚀 Avvio rapido
 
-## 🛠️ AMBIENTE DI SVILUPPO
+Richiede Node.js 20 o successivo con npm.
+
+```bash
+npm install
+npm test
+npm run build
+npm start
+```
+
+## 🧪 Test
+
+127 test automatici si eseguono con `npm test`. Non richiedono hardware né nulla al di fuori di questa macchina.
+
+La CI esegue `HYDRA_UMC_CI=1 python tools/ci_validate.py`, che controlla il manifesto, i documenti, gli otto README e le immagini.
+
+## 🏗️ Compilazione e rilascio
 
 ### Requisiti
 - [Node.js](https://nodejs.org/) (v20 o superiore consigliato)
@@ -211,17 +205,63 @@ curl -X POST http://localhost:8000/command -H "Content-Type: application/json" -
 riporto a minor (e da minor a major) oltre il 9 invece di raggiungere mai
 un segmento a due cifre (`0.0.9` -> `0.1.0`, non `0.0.10`).
 
----
+## 📂 Struttura del repository
 
-## 🚀 TABELLA DI MARCIA
+<p align="center">
+  <img src="images/repository-structure.svg" alt="Repository structure of HYDRA-UMC-GATEWAY-INDUSTRIAL" width="100%">
+</p>
+
+<details>
+<summary>Versione testuale dell'albero</summary>
+
+```text
+HYDRA-UMC-GATEWAY-INDUSTRIAL/
+├── src/                       codice sorgente
+│   ├── probes.ts              Vere verifiche di raggiungibilità TCP/HTTP per figlio
+│   ├── command.ts             Vero CommandDispatcher: allowlist + backpressure + timeout
+│   ├── version.ts             Vera versione del pacchetto a runtime, letta da package.json
+│   ├── server.ts              App Express: GET /status, POST /command
+│   ├── audit.ts               Traccia di audit immutabile di ogni POST /command (chi ha chiesto cosa e cosa è successo)
+│   ├── auth.ts                Autenticazione di chi invia ogni comando
+│   ├── rateLimit.ts           Limitazione di frequenza di POST /command
+│   ├── targets.ts             Il formato che il bersaglio di un comando deve avere secondo il suo protocollo (NodeId OPC UA, percorso MTConnect, topic MQTT)
+│   ├── tls.ts                 Configurazione di TLS e TLS reciproco
+│   └── metrics.ts             Metriche Prometheus (GET /metrics esiste solo con GATEWAY_METRICS=1)
+├── tests/                     Vera suite vitest (probes, sonde di protocollo, server, command, auth, audit, limite di frequenza, TLS, opzioni)
+├── docs/                      Documentazione e riferimento mappatura
+├── images/                    Media e diagrammi
+├── scripts/                   Script di utilità (bump-version.mjs)
+├── tools/                     strumenti del progetto e controlli della CI
+├── .github/                   workflow di CI e modelli di segnalazione
+├── bump_manifest_version.py   Sincronizza la versione di hydra-umc.project.json con quella di package.json (--sync)
+├── .env.example               Modello delle variabili d'ambiente
+├── Dockerfile                 Immagine container propria di questo servizio
+├── docker-compose.yml         Avvia questo Gateway + i suoi 3 figli insieme
+├── CHANGELOG.md               cosa è cambiato in ogni versione
+├── build-test.sh              controllo di build senza modifiche
+├── build.sh                   compila e controlla; non cambia mai la versione
+├── dev.sh                     modalità di sviluppo
+├── hydra-umc.project.json     manifesto: versione, maturità, famiglia
+├── package.json               metadati e script del pacchetto
+└── test.sh                    esegue i test
+```
+
+</details>
+
+## 🗺️ Roadmap e limiti noti
+
+**Limiti noti oggi**
+
 * **Fase 1:** Implementazione di OPC-UA Pub/Sub per lo scambio di dati ad alta velocità e bridging di protocolli legacy.
 * **Fase 2:** Cluster MQTT Broker per la gestione massiva di dispositivi IoT e alta concorrenza.
 * **Fase 3:** Supporto per l'adattatore MTConnect per l'integrazione di macchinari CNC e PLC multi-vendor.
 * **Fase 4:** Conformità completa alla cybersicurezza ISO-27001 per Gateway Industriale e supporto per l'adattatore software Profinet.
 
----
+## 🌍 Lingue
 
-## 🔗 Progetti Correlati
+Questo README e i documenti del repository esistono in otto lingue: inglese, spagnolo, tedesco, francese, italiano, giapponese, cinese e portoghese (Portogallo). Sono scritti insieme e la CI verifica che gli otto file abbiano le stesse sezioni e gli stessi link. Questo repository non ha uno schermo né un catalogo di messaggi propri, quindi non ci sono stringhe di interfaccia da tradurre.
+
+## 🔗 Progetti correlati
 
 Questo progetto fa parte dell'ecosistema robotico HYDRA-UMC dello stesso autore (JuanenRac / Electro Hobby 3D). Vale la pena conoscerlo, poiché una richiesta potrebbe in realtà riguardare uno di questi invece di questo repository.
 
@@ -310,22 +350,27 @@ Questo progetto fa parte dell'ecosistema robotico HYDRA-UMC dello stesso autore 
 - **[HYDRA-UMC-OPS-AGENT](https://github.com/JuanenRac/HYDRA-UMC-OPS-AGENT)** — coordinatore di incidenti di manutenzione: un ruolo edge a basso privilegio raccoglie uno snapshot di inventario/salute sanificato, un ruolo control-plane lo rende in sola lettura e chiede a un provider di IA di suggerire una diagnosi - non applica mai una patch né distribuisce nulla.
 - **[HYDRA-UMC-DEV-SERVER](https://github.com/JuanenRac/HYDRA-UMC-DEV-SERVER)** — host di sviluppo riproducibile (Raspberry Pi 5 / CM5) che conserva il codice sorgente dell'ecosistema ed esegue attività delimitate di build/test tramite una coda durevole; un ruolo di sviluppo dedicato, esplicitamente distinto da un CM5 operativo.
 
+## 📚 Documentazione
 
----
+Dove leggere di più:
 
-## 📚 Documentazione e Comunità
+* **[docs/API.md](docs/API.md)** — il riferimento reale dell'API HTTP: la sonda di vitalità rapida `GET /health`, ogni campo della risposta di `GET /status`, il limite `403`/`429`/`504`/`502` di `POST /command`, e ogni variabile d'ambiente di configurazione, documentato direttamente da `src/server.ts`/`src/probes.ts`.
+* [Base di sicurezza dell'ecosistema](https://github.com/JuanenRac/HYDRA-UMC-DOCS/blob/main/docs/SECURITY_BASELINE.md)
+* [Modello delle minacce dell'ecosistema](https://github.com/JuanenRac/HYDRA-UMC-DOCS/blob/main/docs/THREAT_MODEL.md)
+* [Registro delle modifiche di questo repository](CHANGELOG.md)
+* [Licenza di questo repository](LICENSE.md)
 
-- **[docs/API.md](docs/API.md)** — il riferimento reale dell'API HTTP: la sonda di vitalità rapida `GET /health`, ogni campo della risposta di `GET /status`, il limite `403`/`429`/`504`/`502` di `POST /command`, e ogni variabile d'ambiente di configurazione, documentato direttamente da `src/server.ts`/`src/probes.ts`.
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — stack tecnologico e linee guida di codifica per una pull request.
-- **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** — gli standard di comportamento attesi in questa comunità.
-- **[SECURITY.md](SECURITY.md)** — come segnalare una vulnerabilità, e le reali aree di attenzione sulla sicurezza di questo progetto.
-- **[SUPPORT.md](SUPPORT.md)** — dove porre domande e segnalare bug.
-- **[LICENSE.md](LICENSE.md)** — la licenza propria di questo progetto.
+## 🤝 Contribuire e comunità
+
+* Prima di una pull request esegui `HYDRA_UMC_CI=1 py -3 tools/ci_validate.py` (oppure `HYDRA_UMC_CI=1 python3 tools/ci_validate.py`): deve stampare `CI_VALIDATION=PASS`. Non eseguire `build.sh` né `build.bat` per questa verifica; compilare non è verificare.
+* I otto README sono scritti da un'unica fonte in HYDRA-UMC-DOCS; non modificarli a mano. Cambia la fonte e riscrivili con `tools/make_readmes.py`.
+* Non affermare in un README ciò che non è stato eseguito: scrivi «simulato» o «non provato su hardware» quando è la verità.
+* Vedi [CONTRIBUTING.md](CONTRIBUTING.md), il [codice di condotta](CODE_OF_CONDUCT.md), [SECURITY.md](SECURITY.md) e [SUPPORT.md](SUPPORT.md).
 
 ## 👤 AUTORE
-**JuanenRac** (Electro Hobby 3D)
-📧 electrohobby3d@gmail.com
-📺 [youtube.com/@electrohobby3d](https://youtube.com/@electrohobby3d)
+
+**JuanenRac (Electro Hobby 3D)** · electrohobby3d@gmail.com
 
 ## 📜 LICENZA
-GPL-3.0-or-later - Vedere LICENSE per i dettagli.
+
+GPL-3.0-or-later - [LICENSE](LICENSE).
