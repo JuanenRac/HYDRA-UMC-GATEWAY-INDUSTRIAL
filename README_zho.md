@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-127%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-131%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.6-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,12 +36,12 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | 版本 | `0.1.6` |
 | 成熟度 | 可用 |
-| 测试 | 127 (`npm test`) |
+| 测试 | 131 (`npm test`) |
 | 技术栈 | Node.js / Express / real TCP/HTTP reachability probes |
 | 目标 | HYDRA-UMC 工作单元的 Raspberry Pi CM5 |
 | 真实硬件 | 尚未：此版本没有在真实硬件上运行的记录 |
 
-**跳转：** [概述](#-概述) · [架构](#-架构) · [快速开始](#-快速开始) · [测试](#-测试) · [仓库结构](#-仓库结构) · [相关项目](#-相关项目)
+**跳转：** [概述](#-概述) · [架构](#-架构) · [配置](#-配置) · [快速开始](#-快速开始) · [测试](#-测试) · [仓库结构](#-仓库结构) · [相关项目](#-相关项目)
 
 ## 🚦 项目状态
 
@@ -52,7 +52,7 @@ GPL-3.0-or-later - see LICENSE
 | 领域 | 状态 | 在这里的含义 |
 |---|---|---|
 | 软件 | 🟡 | 主要用途可用；上面的诚实性检查列出了仍然缺少的内容 |
-| 测试 | 🟢 | 127 项自动测试，每次变更都会运行 |
+| 测试 | 🟢 | 131 项自动测试，每次变更都会运行 |
 | 真实硬件 | 🔴 | 尚未：此版本没有在真实硬件上运行的记录 |
 | 文档 | 🟢 | 八种语言的 README，每次变更都会与清单核对 |
 
@@ -137,6 +137,10 @@ docker compose up --build
 `GET http://localhost:8000/status` 会报告本网关自身的版本以及它预期
 能够连接到的子项目。
 
+## ⚙️ 配置
+
+监听端口首先从 `HYDRA_UMC_GATEWAY_PORT` 读取。共享的 `PORT` 仍可作为最后手段并会打印警告，这样多个服务共用的环境文件就不会意外把网关移到另一个服务的端口上；容器健康检查遵循相同的顺序。
+
 ## 🚀 快速开始
 
 需要 Node.js 20 或更高版本及 npm。
@@ -150,7 +154,7 @@ npm start
 
 ## 🧪 测试
 
-运行 `npm test` 会执行 127 个自动测试。 不需要硬件，也不需要这台机器以外的任何东西。
+运行 `npm test` 会执行 131 个自动测试。 不需要硬件，也不需要这台机器以外的任何东西。
 
 CI 运行 `HYDRA_UMC_CI=1 python tools/ci_validate.py`，检查清单、文档、八个 README 和图片。
 

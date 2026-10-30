@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-127%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-131%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.6-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,12 +36,12 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | Versione | `0.1.6` |
 | Maturità | Funzionale |
-| Test | 127 (`npm test`) |
+| Test | 131 (`npm test`) |
 | Tecnologia | Node.js / Express / real TCP/HTTP reachability probes |
 | Destinazione | Il Raspberry Pi CM5 di una cella HYDRA-UMC |
 | Su hardware reale | Non ancora: per questa versione non risulta alcuna esecuzione su hardware reale |
 
-**Vai a:** [Panoramica](#-panoramica) · [Architettura](#-architettura) · [Avvio rapido](#-avvio-rapido) · [Test](#-test) · [Struttura del repository](#-struttura-del-repository) · [Progetti correlati](#-progetti-correlati)
+**Vai a:** [Panoramica](#-panoramica) · [Architettura](#-architettura) · [Configurazione](#-configurazione) · [Avvio rapido](#-avvio-rapido) · [Test](#-test) · [Struttura del repository](#-struttura-del-repository) · [Progetti correlati](#-progetti-correlati)
 
 ## 🚦 Stato del progetto
 
@@ -52,7 +52,7 @@ Ogni riga è una parte di questo repository e il semaforo dice a che punto è og
 | Area | Stato | Cosa significa qui |
 |---|---|---|
 | Software | 🟡 | Funziona per il suo scopo principale; la verifica di onestà qui sopra elenca ciò che manca ancora |
-| Test | 🟢 | 127 test automatici, eseguiti a ogni modifica |
+| Test | 🟢 | 131 test automatici, eseguiti a ogni modifica |
 | Hardware reale | 🔴 | Non ancora: per questa versione non risulta alcuna esecuzione su hardware reale |
 | Documentazione | 🟢 | README in otto lingue, verificato rispetto al manifesto a ogni modifica |
 
@@ -134,6 +134,10 @@ MTConnect su `5000`. `GET http://localhost:8000/status` riporta la
 versione propria del Gateway e quali figli si aspetta di poter
 raggiungere.
 
+## ⚙️ Configurazione
+
+La porta di ascolto viene letta prima da `HYDRA_UMC_GATEWAY_PORT`. Il `PORT` condiviso vale ancora come ultima risorsa e stampa un avviso, così che un file di ambiente condiviso da più servizi non possa spostare il gateway sulla porta di un altro servizio per errore; il controllo di salute del container segue lo stesso ordine.
+
 ## 🚀 Avvio rapido
 
 Richiede Node.js 20 o successivo con npm.
@@ -147,7 +151,7 @@ npm start
 
 ## 🧪 Test
 
-127 test automatici si eseguono con `npm test`. Non richiedono hardware né nulla al di fuori di questa macchina.
+131 test automatici si eseguono con `npm test`. Non richiedono hardware né nulla al di fuori di questa macchina.
 
 La CI esegue `HYDRA_UMC_CI=1 python tools/ci_validate.py`, che controlla il manifesto, i documenti, gli otto README e le immagini.
 
