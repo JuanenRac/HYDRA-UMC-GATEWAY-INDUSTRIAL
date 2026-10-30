@@ -6,7 +6,7 @@ live reachability check of the three protocol bridges this Gateway
 fronts (HYDRA-UMC-OPCUA-SERVER, HYDRA-UMC-MQTT-BROKER,
 HYDRA-UMC-MTCONNECT-ADAPTER) into a single status surface.
 
-Listens on `0.0.0.0:8000` by default (`PORT` env var to override).
+Listens on `0.0.0.0:8000` by default (`HYDRA_UMC_GATEWAY_PORT` env var to override).
 `GET /health` and `GET /status` have no application-level authentication
 (internal/same-network use, real TLS/mTLS below is this gateway's own
 transport-level control instead). `POST /command` additionally supports
@@ -120,7 +120,8 @@ Runs a **real network probe** against each child - a TCP connect for OPC-UA/MQTT
 
 | Var | Default | Affects |
 |---|---|---|
-| `PORT` | `8000` | This server's own listen port. |
+| `HYDRA_UMC_GATEWAY_PORT` | `8000` | This server's own listen port. It wins over `PORT`. |
+| `PORT` | - | Last resort for the listen port when the variable above is not set (a warning is printed): several services of one machine read it, so prefer the specific variable. |
 | `PROBE_TIMEOUT_MS` | `2000` | Timeout for every child probe. |
 | `GATEWAY_STATUS_CACHE_MS` | `1500` | How long a `/status` answer is reused. |
 | `OPCUA_HOST` / `OPCUA_PORT` | `opcua-server` / `4840` | OPC-UA TCP probe target. |

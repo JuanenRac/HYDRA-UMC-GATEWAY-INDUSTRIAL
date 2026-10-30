@@ -52,12 +52,16 @@ import {
 } from "./auth.js";
 import { CommandRateLimiter, requireCommandRateLimit, resolveRateLimitConfig, describeRateLimitMode } from "./rateLimit.js";
 import { FileCommandAuditLogger, recordCommandAttempt, resolveAuditLogPath, type CommandAuditLogger } from "./audit.js";
+import { resolveServicePort } from "./portConfig.js";
 
 // 8000 is free of the three protocol-specific defaults this Gateway
 // fronts (4840 OPC-UA, 1883 MQTT, 5000 MTConnect - see each child's own
 // src/server.ts) so all four can run side by side with zero port
 // collisions during local development or in docker-compose.
-const PORT = Number(process.env.PORT) || 8000;
+// HYDRA_UMC_GATEWAY_PORT is the variable of this service; the shared PORT still works, with a warning.
+const RESOLVED_PORT = resolveServicePort(process.env, "HYDRA_UMC_GATEWAY_PORT", 8000);
+if (RESOLVED_PORT.warning) console.warn(`[HYDRA-UMC-GATEWAY-INDUSTRIAL] ${RESOLVED_PORT.warning}`);
+const PORT = RESOLVED_PORT.port;
 
 // Probe timeout is deliberately short and separately configurable from the
 // child endpoints themselves - tests override it to a few ms so a probe

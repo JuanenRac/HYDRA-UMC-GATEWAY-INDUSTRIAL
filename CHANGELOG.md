@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **The listen port has a variable of its own:** `HYDRA_UMC_GATEWAY_PORT` wins over the shared `PORT`, which several services of one machine read (a shared environment file could silently move this service onto another one's port). `PORT` still works as a last resort and prints a warning; the container health check follows the same order.
+
 - **The notes of the project manifest no longer carry a hand-written test count:** the counts went out of date at every change; the number of tests is stated by the README, which is checked against the code.
 - **README in the universal layout:** the README and its seven translations follow the layout that the four families share (22 sections in a fixed order), with an architecture picture and a repository-structure picture drawn from `docs/architecture.json` and `docs/structure.json`; the CI validator checks both pictures and the file tree.
 
