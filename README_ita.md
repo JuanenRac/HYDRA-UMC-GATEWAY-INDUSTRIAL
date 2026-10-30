@@ -259,7 +259,7 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 * **Fase 1:** Implementazione di OPC-UA Pub/Sub per lo scambio di dati ad alta velocità e bridging di protocolli legacy.
 * **Fase 2:** Cluster MQTT Broker per la gestione massiva di dispositivi IoT e alta concorrenza.
 * **Fase 3:** Supporto per l'adattatore MTConnect per l'integrazione di macchinari CNC e PLC multi-vendor.
-* **Fase 4:** Conformità completa alla cybersicurezza ISO-27001 per Gateway Industriale e supporto per l'adattatore software Profinet.
+* **Fase 4 (idea):** Il supporto Profinet e la conformità ISO-27001 sono solo idee e nulla è implementato; se mai verranno realizzati, vivrebbero in un progetto separato ancora da definire.
 
 ## 🌍 Lingue
 
