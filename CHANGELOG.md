@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **A gate for writes to a controller, off by default.** OPC-UA `write` and `write_commit` exist only with `GATEWAY_WRITES=1` (and then the start needs the node rules and a source of the cell state). A write needs a rule for its exact node (type, range or listed values), is prepared first and released by a second request with a one-use confirmation id that expires and belongs to the caller who asked, is refused unless the safety state of the cell is a fresh READY at both steps, needs its own scopes, and every decision goes into a hash chain listed by `GET /command/write-audit`. There is still no executor that writes to a PLC: `GATEWAY_WRITE_SIMULATED=1` uses an in-memory controller, and otherwise a committed write ends as `probe_only` (`src/writeGate.ts`).
+
 ## [0.1.7] - A variable of its own for the listen port, the test count out of the manifest notes and the universal README
 
 - **The listen port has a variable of its own:** `HYDRA_UMC_GATEWAY_PORT` wins over the shared `PORT`, which several services of one machine read (a shared environment file could silently move this service onto another one's port). `PORT` still works as a last resort and prints a warning; the container health check follows the same order.

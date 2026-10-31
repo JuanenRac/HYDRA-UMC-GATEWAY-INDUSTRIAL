@@ -36,6 +36,8 @@
 // not yet performing an actual protocol-level write.
 // =============================================================================
 
+import type { WriteGate } from "./writeGate.js";
+
 export type Protocol = "OPC-UA" | "MQTT" | "MTConnect";
 
 /** The closed list of protocols a command may name; anything else is a malformed request, never a lookup key. */
@@ -53,6 +55,12 @@ export interface CommandRequest {
   operation: string;
   target: string;
   timeoutMs?: number;
+  /** For an OPC-UA "write": the value to write. */
+  value?: unknown;
+  /** For an OPC-UA "write_commit": the id that "write" handed out. */
+  confirmId?: string;
+  /** Who asks (the `sub` of the token), so a confirmation can only be used by the one it was handed to. */
+  caller?: string | null;
 }
 
 export type CommandOutcome =
@@ -60,6 +68,9 @@ export type CommandOutcome =
   // The target answered a reachability probe, but this gateway has no executor that performs the operation: nothing was executed, and the caller must not believe it was.
   | { status: "probe_only"; latencyMs: number; reason: string }
   | { status: "rejected_unauthorized"; reason: string }
+  // The write gate (writeGate.ts) refused a write or its confirmation, or handed out a confirmation id: nothing was written either way.
+  | { status: "rejected_write"; reason: string }
+  | { status: "write_prepared"; confirmId: string; expiresAtMs: number }
   | { status: "rejected_backpressure"; reason: string }
   | { status: "timeout"; reason: string }
   | { status: "downstream_unreachable"; reason: string }
@@ -112,6 +123,8 @@ export interface DispatcherOptions {
   executor?: CommandExecutor;
   /** Topic filters an MQTT publish may target (default DEFAULT_MQTT_PUBLISH_TOPICS). */
   mqttPublishTopics?: readonly string[];
+  /** The gate for OPC-UA writes. Without one, or while it is not enabled, "write" is not an operation of the gateway. */
+  writeGate?: WriteGate;
 }
 
 const TIMEOUT_MARKER = "timeout" as const;
@@ -150,6 +163,7 @@ export class CommandDispatcher {
   private readonly defaultTimeoutMs: number;
   private readonly executor: CommandExecutor;
   private readonly mqttPublishTopics: readonly string[];
+  private readonly writeGate: WriteGate | undefined;
   private inFlight = 0;
 
   constructor(options: DispatcherOptions = {}) {
@@ -157,15 +171,23 @@ export class CommandDispatcher {
     this.maxConcurrent = options.maxConcurrent ?? 4;
     this.defaultTimeoutMs = options.defaultTimeoutMs ?? 2000;
     this.mqttPublishTopics = options.mqttPublishTopics ?? DEFAULT_MQTT_PUBLISH_TOPICS;
+    this.writeGate = options.writeGate;
     this.executor =
       options.executor ??
       (async () => ({ ok: false, detail: "no executor configured for this dispatcher" }));
   }
 
   isAuthorized(protocol: Protocol, operation: string): boolean {
+    // The two steps of a write exist only for OPC-UA and only while the gate is on; the allowlist never lists them.
+    if (protocol === "OPC-UA" && (operation === "write" || operation === "write_commit")) return this.writeGate?.enabled === true;
     // Own properties only: "constructor" or "__proto__" must never resolve to an inherited object.
     if (!Object.hasOwn(this.allowlist, protocol)) return false;
     return this.allowlist[protocol]?.has(operation) ?? false;
+  }
+
+  /** The write gate this dispatcher consults, if any. */
+  get gate(): WriteGate | undefined {
+    return this.writeGate;
   }
 
   get inFlightCount(): number {
@@ -177,6 +199,26 @@ export class CommandDispatcher {
   // how busy the gateway happens to be right now - an unauthorized
   // command must never appear to have merely been "too busy" to run.
   async dispatch(req: CommandRequest): Promise<CommandOutcome> {
+    const gate = this.writeGate;
+    if (gate && req.protocol === "OPC-UA" && this.isAuthorized(req.protocol, req.operation)) {
+      const caller = req.caller ?? null;
+      if (req.operation === "write") {
+        const decision = await gate.prepare(caller, req.target, req.value);
+        return decision.ok ? { status: "write_prepared", confirmId: decision.confirmId, expiresAtMs: decision.expiresAtMs } : { status: "rejected_write", reason: decision.reason };
+      }
+      if (req.operation === "write_commit") {
+        const decision = await gate.commit(caller, req.confirmId);
+        if (!decision.ok) return { status: "rejected_write", reason: decision.reason };
+        // the released write goes through the same capacity and timeout rules as any other command
+        const outcome = await this.run({ protocol: "OPC-UA", operation: "write", target: decision.target, value: decision.value, timeoutMs: req.timeoutMs, caller });
+        gate.recordExecution(caller, decision.target, outcome.status);
+        return outcome;
+      }
+    }
+    return this.run(req);
+  }
+
+  private async run(req: CommandRequest): Promise<CommandOutcome> {
     if (!this.isAuthorized(req.protocol, req.operation)) {
       return {
         status: "rejected_unauthorized",

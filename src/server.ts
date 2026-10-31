@@ -24,6 +24,7 @@
 // deployment.
 // =============================================================================
 
+import fs from "node:fs";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { createServer as createHttpsServer } from "node:https";
 import { probeHttp, probeMqtt, probeMtconnect, probeOpcUa, probeTcp, resolveProbeMode, type ProbeMode, type ProbeResult } from "./probes.js";
@@ -53,6 +54,7 @@ import {
 import { CommandRateLimiter, requireCommandRateLimit, resolveRateLimitConfig, describeRateLimitMode } from "./rateLimit.js";
 import { FileCommandAuditLogger, recordCommandAttempt, resolveAuditLogPath, type CommandAuditLogger } from "./audit.js";
 import { resolveServicePort } from "./portConfig.js";
+import { WriteGate, createSimulatedController, parseWriteRules, verifyChain, writesEnabled, type CellStateProvider } from "./writeGate.js";
 
 // 8000 is free of the three protocol-specific defaults this Gateway
 // fronts (4840 OPC-UA, 1883 MQTT, 5000 MTConnect - see each child's own
@@ -195,7 +197,14 @@ export function buildApp(options: BuildAppOptions = {}) {
   // One dispatcher per app instance (not per request) - backpressure
   // only means anything if concurrent requests share the same in-flight
   // counter.
-  const dispatcher = options.commandDispatcher ?? new CommandDispatcher({ executor: buildCommandExecutor(buildChildren()), mqttPublishTopics: resolveMqttPublishTopics() });
+  const writeGate = options.commandDispatcher ? undefined : buildWriteGate();
+  const dispatcher =
+    options.commandDispatcher ??
+    new CommandDispatcher({
+      executor: writeGate && simulatedWritesEnabled() ? createSimulatedController().executor : buildCommandExecutor(buildChildren()),
+      mqttPublishTopics: resolveMqttPublishTopics(),
+      writeGate,
+    });
   const commandAuthConfig = resolveCommandAuthConfig();
   const commandAuthMiddleware = commandAuthConfig || certCommonNames.length > 0 ? [requireCommandAuth(commandAuthConfig, certCommonNames)] : [];
   const rateLimiter = options.rateLimiter ?? new CommandRateLimiter();
@@ -268,6 +277,8 @@ export function buildApp(options: BuildAppOptions = {}) {
 
   const OUTCOME_HTTP_STATUS: Record<string, number> = {
     accepted: 200,
+    write_prepared: 202,
+    rejected_write: 403,
     probe_only: 501,
     rejected_unauthorized: 403,
     rejected_backpressure: 429,
@@ -296,7 +307,7 @@ export function buildApp(options: BuildAppOptions = {}) {
     ...commandAuthMiddleware,
     async (req, res) => {
       const body = req.body ?? {};
-      const { protocol, operation, target, timeoutMs } = body;
+      const { protocol, operation, target, timeoutMs, value, confirmId } = body;
       if (typeof protocol !== "string" || typeof operation !== "string" || typeof target !== "string") {
         res.locals.auditOutcome = "invalid_request";
         res.status(400).json({ error: "protocol, operation and target are required strings" });
@@ -328,17 +339,34 @@ export function buildApp(options: BuildAppOptions = {}) {
         return;
       }
 
+      if (confirmId !== undefined && typeof confirmId !== "string") {
+        res.locals.auditOutcome = "invalid_request";
+        res.status(400).json({ error: "confirmId, when present, must be a string" });
+        return;
+      }
       const outcome = await dispatcher.dispatch({
         protocol,
         operation,
         target,
         timeoutMs,
+        value,
+        confirmId,
+        caller: req.commandCaller ?? null,
       });
       res.locals.auditOutcome = outcome.status;
       if ("reason" in outcome) res.locals.auditReason = outcome.reason;
       res.status(OUTCOME_HTTP_STATUS[outcome.status] ?? 500).json(outcome);
     },
   );
+
+  // The tamper-evident record of what the write gate decided: behind the same authentication as POST /command, and only when writes are on.
+  const activeGate = writeGate ?? dispatcher.gate;
+  if (activeGate?.enabled) {
+    app.get("/command/write-audit", ...commandAuthMiddleware, (_req, res) => {
+      const records = activeGate.auditChain();
+      res.json({ records, chainIntact: verifyChain(records) });
+    });
+  }
 
   // Last: whatever a handler throws (or a malformed JSON body) leaves as a JSON error without a stack trace or an internal path.
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
@@ -370,6 +398,42 @@ function resolveStatusCacheMs(env: NodeJS.ProcessEnv = process.env): number {
 function resolveMqttPublishTopics(env: NodeJS.ProcessEnv = process.env): readonly string[] {
   const configured = (env.GATEWAY_MQTT_PUBLISH_TOPICS ?? "").split(",").map(item => item.trim()).filter(Boolean);
   return configured.length > 0 ? configured : DEFAULT_MQTT_PUBLISH_TOPICS;
+}
+
+function simulatedWritesEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (env.GATEWAY_WRITE_SIMULATED ?? "").trim() === "1";
+}
+
+/**
+ * The write gate from the environment. Writes are off unless GATEWAY_WRITES=1. When on, the node rules (GATEWAY_WRITE_RULES_FILE, a JSON list) and a
+ * source of the cell state (GATEWAY_CELL_STATE_URL: a GET that answers {"state": "READY", "timestamp_utc": "..."}) are required, and the start fails without them:
+ * a gateway that says it writes but would refuse everything, or write blind, is a misconfiguration to stop, not to run.
+ */
+function buildWriteGate(env: NodeJS.ProcessEnv = process.env): WriteGate | undefined {
+  if (!writesEnabled(env)) return undefined;
+  const rulesFile = env.GATEWAY_WRITE_RULES_FILE?.trim();
+  const stateUrl = env.GATEWAY_CELL_STATE_URL?.trim();
+  if (!rulesFile) throw new Error("GATEWAY_WRITES=1 needs GATEWAY_WRITE_RULES_FILE (the nodes that may be written, one rule each)");
+  if (!stateUrl) throw new Error("GATEWAY_WRITES=1 needs GATEWAY_CELL_STATE_URL (the safety state of the cell): a write is not made blind");
+  const rules = parseWriteRules(fs.readFileSync(rulesFile, "utf8"));
+  const ttl = Number(env.GATEWAY_WRITE_CONFIRM_TTL_MS);
+  const maxAge = Number(env.GATEWAY_CELL_STATE_MAX_AGE_MS);
+  const cellState: CellStateProvider = async () => {
+    const response = await fetch(stateUrl, { signal: AbortSignal.timeout(1500) });
+    if (!response.ok) return null;
+    const body = (await response.json()) as { state?: unknown; timestamp_utc?: unknown };
+    const at = typeof body.timestamp_utc === "string" ? Date.parse(body.timestamp_utc) : NaN;
+    return typeof body.state === "string" && Number.isFinite(at) ? { state: body.state, atMs: at } : null;
+  };
+  console.warn(`[HYDRA-UMC-GATEWAY-INDUSTRIAL] WRITES ARE ON: ${rules.length} node(s) may be written, two steps, only while the cell is READY`);
+  if (simulatedWritesEnabled(env)) console.warn("[HYDRA-UMC-GATEWAY-INDUSTRIAL] GATEWAY_WRITE_SIMULATED=1: writes go to an in-memory controller, not to a PLC");
+  return new WriteGate({
+    enabled: true,
+    rules,
+    cellState,
+    ...(Number.isFinite(ttl) && ttl > 0 ? { confirmTtlMs: ttl } : {}),
+    ...(Number.isFinite(maxAge) && maxAge > 0 ? { cellStateMaxAgeMs: maxAge } : {}),
+  });
 }
 
 function main() {

@@ -194,3 +194,17 @@ publish there would be an unauthenticated order to a machine. A refused topic is
 **Request validation.** `protocol` must be exactly `OPC-UA`, `MQTT` or `MTConnect`, `operation` (at most 64 characters) and `target` (at most 512) must not be empty, and `timeoutMs`, when present, must be a positive number of at most 30000: anything else is a `400` with a JSON body (a malformed JSON body too, and an unexpected failure is a plain `500 {"error":"internal error"}`: an answer never carries a stack trace or a server path). The bridges' command topics (`hydra/bridges/...`, `vda5050/...`) and `$SYS` are never reachable through an MQTT `publish`.
 
 **Audit trail.** Every attempt is logged (`logs/command-audit.log`, rotated at 10 MiB) with its outcome, the caller, the peer address, the user agent, the duration and, on a mutual-TLS connection, the client certificate subject; an attempt whose client hung up before the answer is logged too, with `aborted: true`.
+
+## Writes to a controller (`write`, `write_commit`)
+
+Off by default: with `GATEWAY_WRITES` unset, `write` and `write_commit` are not operations of the gateway (`403`, `rejected_unauthorized`), for any protocol. Only OPC-UA has them. `GATEWAY_WRITES=1` also needs
+`GATEWAY_WRITE_RULES_FILE` and `GATEWAY_CELL_STATE_URL`, and the gateway refuses to start without them (it would either refuse everything or write blind); the start announces that writes are on.
+
+1. **A rule for every node.** `GATEWAY_WRITE_RULES_FILE` is a JSON list; each rule names one exact NodeId (no wildcards), its `type` (`number`, `boolean`, `string`) and, for a number, `min` and `max` (an unbounded setpoint is not a rule) or `values`. A node with no rule cannot be written; a bad rule stops the start.
+2. **Two steps.** `{"protocol": "OPC-UA", "operation": "write", "target": "ns=2;s=Line1.Setpoint", "value": 42}` checks the node, the value and the cell, writes nothing, and answers `202` with `{"status": "write_prepared", "confirmId", "expiresAtMs"}`.
+   `{"operation": "write_commit", "target": ..., "confirmId": ...}` releases it: the id lasts `GATEWAY_WRITE_CONFIRM_TTL_MS` (default 30000, at most 300000), can be used once and only by the caller it was handed to (the `sub` of the token); a wrong try burns it. A refusal is `403` `rejected_write` with the reason.
+3. **The state of the cell.** Both steps read `GATEWAY_CELL_STATE_URL` (a GET answering the `SafetyState` of the SDK: `{"state": "READY", "timestamp_utc": "..."}`). Only a READY not older than `GATEWAY_CELL_STATE_MAX_AGE_MS` (default 2000) lets a write through; INHIBITED, FAULT, SAFE_STOP, an old reading, an unreadable one or no source refuse.
+4. **Scopes.** A token needs `opc-ua:write` for the first step and `opc-ua:write_commit` for the second (or `opc-ua:*`).
+5. **A chain of decisions.** Every decision is recorded with the SHA-256 of the previous record; `GET /command/write-audit` (same authentication as `POST /command`) lists the last 1000 records and says whether the chain is intact. The chain shows that records were not edited or removed in the middle; it is not signed, and cutting off its tail is not detected.
+
+No executor that writes to a real PLC exists: with the default executor a committed write ends as `probe_only` (`501`) and nothing was written. `GATEWAY_WRITE_SIMULATED=1` sends the writes to an in-memory controller to try the whole path without a PLC.
