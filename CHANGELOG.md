@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.1.8] - A gate for writes to a controller, off by default, and updated dependencies
+
 - **Dependencies with known vulnerabilities are updated:** the request-body parser, the query-string parser and the proxy-address check move to their patched releases inside the same major version (a spoofing fix for trusted proxies and denial-of-service fixes); only the lock file changes.
 - **A gate for writes to a controller, off by default.** OPC-UA `write` and `write_commit` exist only with `GATEWAY_WRITES=1` (and then the start needs the node rules and a source of the cell state). A write needs a rule for its exact node (type, range or listed values), is prepared first and released by a second request with a one-use confirmation id that expires and belongs to the caller who asked, is refused unless the safety state of the cell is a fresh READY at both steps, needs its own scopes, and every decision goes into a hash chain listed by `GET /command/write-audit`. There is still no executor that writes to a PLC: `GATEWAY_WRITE_SIMULATED=1` uses an in-memory controller, and otherwise a committed write ends as `probe_only` (`src/writeGate.ts`).
 
