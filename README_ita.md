@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-131%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-146%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.8-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,7 +36,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | Versione | `0.1.8` |
 | Maturità | Funzionale |
-| Test | 131 (`npm test`) |
+| Test | 146 (`npm test`) |
 | Tecnologia | Node.js / Express / real TCP/HTTP reachability probes |
 | Destinazione | Il Raspberry Pi CM5 di una cella HYDRA-UMC |
 | Su hardware reale | Non ancora: per questa versione non risulta alcuna esecuzione su hardware reale |
@@ -52,7 +52,7 @@ Ogni riga è una parte di questo repository e il semaforo dice a che punto è og
 | Area | Stato | Cosa significa qui |
 |---|---|---|
 | Software | 🟡 | Funziona per il suo scopo principale; la verifica di onestà qui sopra elenca ciò che manca ancora |
-| Test | 🟢 | 131 test automatici, eseguiti a ogni modifica |
+| Test | 🟢 | 146 test automatici, eseguiti a ogni modifica |
 | Hardware reale | 🔴 | Non ancora: per questa versione non risulta alcuna esecuzione su hardware reale |
 | Documentazione | 🟢 | README in otto lingue, verificato rispetto al manifesto a ogni modifica |
 
@@ -151,7 +151,7 @@ npm start
 
 ## 🧪 Test
 
-131 test automatici si eseguono con `npm test`. Non richiedono hardware né nulla al di fuori di questa macchina.
+146 test automatici si eseguono con `npm test`. Non richiedono hardware né nulla al di fuori di questa macchina.
 
 La CI esegue `HYDRA_UMC_CI=1 python tools/ci_validate.py`, che controlla il manifesto, i documenti, gli otto README e le immagini.
 
