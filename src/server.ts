@@ -54,7 +54,8 @@ import {
 import { CommandRateLimiter, requireCommandRateLimit, resolveRateLimitConfig, describeRateLimitMode } from "./rateLimit.js";
 import { FileCommandAuditLogger, recordCommandAttempt, resolveAuditLogPath, type CommandAuditLogger } from "./audit.js";
 import { resolveServicePort } from "./portConfig.js";
-import { WriteGate, createSimulatedController, parseWriteRules, verifyChain, writesEnabled, type CellStateProvider } from "./writeGate.js";
+import { WriteGate, chainHead, createSimulatedController, parseWriteRules, writesEnabled, type CellStateProvider } from "./writeGate.js";
+import { fileAuditSink, loadAuditFile, readAuditKey } from "./writeAuditStore.js";
 
 // 8000 is free of the three protocol-specific defaults this Gateway
 // fronts (4840 OPC-UA, 1883 MQTT, 5000 MTConnect - see each child's own
@@ -364,7 +365,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   if (activeGate?.enabled) {
     app.get("/command/write-audit", ...commandAuthMiddleware, (_req, res) => {
       const records = activeGate.auditChain();
-      res.json({ records, chainIntact: verifyChain(records) });
+      res.json({ records, chainIntact: activeGate.verify(records), signed: activeGate.signed, head: chainHead(records) });
     });
   }
 
@@ -416,6 +417,14 @@ function buildWriteGate(env: NodeJS.ProcessEnv = process.env): WriteGate | undef
   if (!rulesFile) throw new Error("GATEWAY_WRITES=1 needs GATEWAY_WRITE_RULES_FILE (the nodes that may be written, one rule each)");
   if (!stateUrl) throw new Error("GATEWAY_WRITES=1 needs GATEWAY_CELL_STATE_URL (the safety state of the cell): a write is not made blind");
   const rules = parseWriteRules(fs.readFileSync(rulesFile, "utf8"));
+  // The signature of the audit chain is on unless it is switched off on purpose: an unsigned chain proves the log is consistent, not who wrote it.
+  const signing = (env.GATEWAY_WRITE_AUDIT_SIGNING ?? "on").trim().toLowerCase();
+  if (signing !== "on" && signing !== "off") throw new Error("GATEWAY_WRITE_AUDIT_SIGNING must be on or off");
+  const keyFile = env.GATEWAY_WRITE_AUDIT_KEY_FILE?.trim();
+  if (signing === "on" && !keyFile) throw new Error("GATEWAY_WRITES=1 needs GATEWAY_WRITE_AUDIT_KEY_FILE (the key that signs the audit chain), or GATEWAY_WRITE_AUDIT_SIGNING=off to keep an unsigned chain on purpose");
+  const auditKey = signing === "on" && keyFile ? readAuditKey(keyFile) : undefined;
+  const auditFile = env.GATEWAY_WRITE_AUDIT_FILE?.trim();
+  const resume = auditFile ? loadAuditFile(auditFile, auditKey) : [];
   const ttl = Number(env.GATEWAY_WRITE_CONFIRM_TTL_MS);
   const maxAge = Number(env.GATEWAY_CELL_STATE_MAX_AGE_MS);
   const cellState: CellStateProvider = async () => {
@@ -426,11 +435,15 @@ function buildWriteGate(env: NodeJS.ProcessEnv = process.env): WriteGate | undef
     return typeof body.state === "string" && Number.isFinite(at) ? { state: body.state, atMs: at } : null;
   };
   console.warn(`[HYDRA-UMC-GATEWAY-INDUSTRIAL] WRITES ARE ON: ${rules.length} node(s) may be written, two steps, only while the cell is READY`);
+  if (auditKey === undefined) console.warn("[HYDRA-UMC-GATEWAY-INDUSTRIAL] GATEWAY_WRITE_AUDIT_SIGNING=off: the audit chain is not signed");
+  if (!auditFile) console.warn("[HYDRA-UMC-GATEWAY-INDUSTRIAL] no GATEWAY_WRITE_AUDIT_FILE: the audit chain lives in memory and is lost at a restart");
   if (simulatedWritesEnabled(env)) console.warn("[HYDRA-UMC-GATEWAY-INDUSTRIAL] GATEWAY_WRITE_SIMULATED=1: writes go to an in-memory controller, not to a PLC");
   return new WriteGate({
     enabled: true,
     rules,
     cellState,
+    ...(auditKey !== undefined ? { auditKey } : {}),
+    ...(auditFile ? { auditSink: fileAuditSink(auditFile), resume } : {}),
     ...(Number.isFinite(ttl) && ttl > 0 ? { confirmTtlMs: ttl } : {}),
     ...(Number.isFinite(maxAge) && maxAge > 0 ? { cellStateMaxAgeMs: maxAge } : {}),
   });

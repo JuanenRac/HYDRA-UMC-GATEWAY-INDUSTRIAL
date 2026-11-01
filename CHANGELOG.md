@@ -4,6 +4,7 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **The audit chain of the write gate is signed and can be kept on disk.** With writes on, every record carries an HMAC-SHA256 signature of its hash (`GATEWAY_WRITE_AUDIT_KEY_FILE`; `GATEWAY_WRITE_AUDIT_SIGNING=off` keeps an unsigned chain on purpose), `GET /command/write-audit` answers the head of the chain so that a cut tail can be noticed, and `GATEWAY_WRITE_AUDIT_FILE` keeps the records across restarts (the start refuses a file that does not verify, and no write is accepted once a record cannot be written). The contract that the first real executor must keep is written in `docs/API.md`.
 - **Development tools brought to their current major versions:** Vitest 5, TypeScript 7 and Node.js 22 for the tests and the CI. The typecheck, the 146 tests and the bundle pass.
 
 ## [0.1.8] - A gate for writes to a controller, off by default, and updated dependencies

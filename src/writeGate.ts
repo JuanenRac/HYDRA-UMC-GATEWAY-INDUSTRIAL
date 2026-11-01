@@ -12,12 +12,13 @@
 //   4. The state of the cell: both steps ask for the safety state of the cell (the SafetyState of the SDK). Only a fresh READY lets a write
 //      through; INHIBITED, FAULT, SAFE_STOP, a state that is too old, or no way to know it refuse (fail closed).
 //   5. Every decision is recorded in a chain: each record carries the SHA-256 of the one before it, so a record that is removed or edited
-//      afterwards breaks the chain (verifyChain). The chain is tamper-evident, not signed: it proves the log is consistent, not who wrote it.
+//      afterwards breaks the chain (verifyChain). With an audit key every record is also signed (HMAC-SHA256 over its hash), so the chain
+//      cannot be rebuilt by someone who does not hold the key; the head of the chain (seq, hash, signature) can be kept elsewhere, and a
+//      chain that is shorter than a head that was kept is a chain whose tail was cut. Without a key the chain is only tamper-evident.
 // The executor that really writes is separate (CommandExecutor): without one the commit ends as "probe_only", nothing was written.
 // =============================================================================
 
-import { createHash } from "node:crypto";
-import { randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 /** The states the safety service reports (SafetyState of the SDK). */
 export type CellStateName = "READY" | "INHIBITED" | "FAULT" | "SAFE_STOP";
@@ -54,6 +55,12 @@ export interface WriteGateOptions {
   /** At most this many prepared writes wait for their confirmation (default 64). */
   maxPending?: number;
   now?: () => number;
+  /** Signs every record of the chain (HMAC-SHA256). At least MIN_AUDIT_KEY_LENGTH characters. */
+  auditKey?: string;
+  /** Called with every new record, to keep it on disk. A sink that throws does not stop the decision, but the failure is counted. */
+  auditSink?: (record: ChainRecord) => void;
+  /** The records of an earlier run (already verified by the caller), so the chain continues instead of starting again. */
+  resume?: readonly ChainRecord[];
 }
 
 export type GateDecision =
@@ -73,7 +80,19 @@ export interface ChainRecord {
   detail: string;
   prevHash: string;
   hash: string;
+  /** HMAC-SHA256 of `hash` with the audit key, in hex; present when the gate has a key. */
+  sig?: string;
 }
+
+/** The newest record of a chain, as a verifier keeps it to notice later that the tail was cut. */
+export interface ChainHead {
+  seq: number;
+  hash: string;
+  sig?: string;
+}
+
+/** The shortest audit key accepted (characters). */
+export const MIN_AUDIT_KEY_LENGTH = 32;
 
 const GENESIS = "0".repeat(64);
 const MAX_CHAIN = 1000;
@@ -87,14 +106,40 @@ function chainHash(record: Omit<ChainRecord, "hash">): string {
   return sha256([record.seq, record.at, record.event, record.caller ?? "", record.target, record.detail, record.prevHash].join("\n"));
 }
 
-/** True when every record carries the hash of its content and the hash of the one before it (the first one follows the genesis value). */
-export function verifyChain(records: readonly ChainRecord[]): boolean {
+function signHash(key: string, hash: string): string {
+  return createHmac("sha256", key).update(hash).digest("hex");
+}
+
+function sameHex(a: string, b: string): boolean {
+  const left = Buffer.from(a, "utf8");
+  const right = Buffer.from(b, "utf8");
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+/** The head of a chain (its newest record), or null for an empty one. */
+export function chainHead(records: readonly ChainRecord[]): ChainHead | null {
+  const last = records[records.length - 1];
+  return last ? { seq: last.seq, hash: last.hash, ...(last.sig ? { sig: last.sig } : {}) } : null;
+}
+
+/** Whether a chain still holds the head that was kept: the head's record is in it with the same hash (a cut tail would not contain it). */
+export function chainContainsHead(records: readonly ChainRecord[], head: ChainHead): boolean {
+  const record = records.find((r) => r.seq === head.seq);
+  return record !== undefined && record.hash === head.hash;
+}
+
+/**
+ * True when every record carries the hash of its content and the hash of the one before it (the first one follows the genesis value).
+ * With `key`, every record must also carry the signature of its hash: a chain that someone rebuilt without the key does not pass.
+ */
+export function verifyChain(records: readonly ChainRecord[], key?: string): boolean {
   let previous = records.length > 0 && records[0].seq > 1 ? records[0].prevHash : GENESIS;
   let expectedSeq = records.length > 0 ? records[0].seq : 1;
   for (const record of records) {
     if (record.seq !== expectedSeq || record.prevHash !== previous) return false;
-    const { hash, ...rest } = record;
+    const { hash, sig, ...rest } = record;
     if (chainHash(rest) !== hash) return false;
+    if (key !== undefined && (typeof sig !== "string" || !sameHex(sig, signHash(key, hash)))) return false;
     previous = hash;
     expectedSeq++;
   }
@@ -160,6 +205,10 @@ export class WriteGate {
   private readonly cellStateMaxAgeMs: number;
   private readonly maxPending: number;
   private readonly now: () => number;
+  private readonly auditKey: string | undefined;
+  private readonly auditSink: ((record: ChainRecord) => void) | undefined;
+  /** How many records could not be handed to the sink; once one failed, no write is accepted (the trail cannot be kept). */
+  auditSinkFailures = 0;
   private readonly pending = new Map<string, Pending>();
   private readonly chain: ChainRecord[] = [];
   private nextSeq = 1;
@@ -173,6 +222,29 @@ export class WriteGate {
     this.cellStateMaxAgeMs = options.cellStateMaxAgeMs ?? 2000;
     this.maxPending = options.maxPending ?? 64;
     this.now = options.now ?? Date.now;
+    if (options.auditKey !== undefined && options.auditKey.length < MIN_AUDIT_KEY_LENGTH) {
+      throw new Error(`the audit key must have at least ${MIN_AUDIT_KEY_LENGTH} characters`);
+    }
+    this.auditKey = options.auditKey;
+    this.auditSink = options.auditSink;
+    const earlier = options.resume ?? [];
+    if (earlier.length > 0) {
+      if (!verifyChain(earlier, this.auditKey)) throw new Error("the audit records of the earlier run do not form a valid chain");
+      this.chain.push(...earlier.slice(-MAX_CHAIN));
+      const last = earlier[earlier.length - 1];
+      this.nextSeq = last.seq + 1;
+      this.lastHash = last.hash;
+    }
+  }
+
+  /** Whether the records of this gate are signed. */
+  get signed(): boolean {
+    return this.auditKey !== undefined;
+  }
+
+  /** The key that verifies this gate's chain, for the endpoint that reports whether it is intact. */
+  verify(records: readonly ChainRecord[] = this.chain): boolean {
+    return verifyChain(records, this.auditKey);
   }
 
   /** The records of the chain, oldest first (the last 1000). */
@@ -182,10 +254,18 @@ export class WriteGate {
 
   private record(event: string, caller: string | null, target: string, detail: string): void {
     const partial = { seq: this.nextSeq++, at: new Date(this.now()).toISOString(), event, caller, target, detail, prevHash: this.lastHash };
-    const record: ChainRecord = { ...partial, hash: chainHash(partial) };
+    const hash = chainHash(partial);
+    const record: ChainRecord = { ...partial, hash, ...(this.auditKey !== undefined ? { sig: signHash(this.auditKey, hash) } : {}) };
     this.lastHash = record.hash;
     this.chain.push(record);
     if (this.chain.length > MAX_CHAIN) this.chain.shift();
+    if (this.auditSink) {
+      try {
+        this.auditSink(record);
+      } catch {
+        this.auditSinkFailures++;
+      }
+    }
   }
 
   private refuse(event: string, caller: string | null, target: string, reason: string): { ok: false; reason: string } {
@@ -216,6 +296,7 @@ export class WriteGate {
   /** Step one: checks the write and, if it passes, hands out a confirmation id. Nothing is written. */
   async prepare(caller: string | null, target: string, value: unknown): Promise<GateDecision> {
     if (!this.enabled) return this.refuse("write_refused", caller, target, "writes are off (GATEWAY_WRITES is not 1)");
+    if (this.auditSinkFailures > 0) return this.refuse("write_refused", caller, target, "the audit trail could not be written to disk: no write is accepted until the gateway is restarted");
     const rule = this.rules.get(target);
     if (!rule) return this.refuse("write_refused", caller, target, "no write rule names this node");
     const problem = valueProblem(rule, value);
@@ -234,6 +315,7 @@ export class WriteGate {
   /** Step two: the confirmation id is used up whatever happens next, and the state of the cell is asked again. */
   async commit(caller: string | null, confirmId: unknown): Promise<CommitDecision> {
     if (!this.enabled) return this.refuse("commit_refused", caller, "", "writes are off (GATEWAY_WRITES is not 1)");
+    if (this.auditSinkFailures > 0) return this.refuse("commit_refused", caller, "", "the audit trail could not be written to disk: no write is accepted until the gateway is restarted");
     const entry = typeof confirmId === "string" ? this.pending.get(confirmId) : undefined;
     if (typeof confirmId === "string") this.pending.delete(confirmId);
     if (!entry) return this.refuse("commit_refused", caller, "", "the confirmation id is unknown, expired or already used");

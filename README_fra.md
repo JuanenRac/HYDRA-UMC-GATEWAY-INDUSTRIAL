@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-146%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-154%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.8-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,7 +36,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | Version | `0.1.8` |
 | Maturité | Fonctionnel |
-| Tests | 146 (`npm test`) |
+| Tests | 154 (`npm test`) |
 | Technologie | Node.js / Express / real TCP/HTTP reachability probes |
 | Cible | Le Raspberry Pi CM5 d'une cellule HYDRA-UMC |
 | Sur matériel réel | Pas encore : aucune exécution sur du matériel réel n'est consignée pour cette version |
@@ -52,7 +52,7 @@ Chaque ligne est une partie de ce dépôt et le feu dit où elle en est aujourd'
 | Domaine | État | Ce que cela veut dire ici |
 |---|---|---|
 | Logiciel | 🟡 | Fonctionne pour son usage principal ; la vérification d'honnêteté ci-dessus liste ce qui manque encore |
-| Tests | 🟢 | 146 tests automatiques, exécutés à chaque modification |
+| Tests | 🟢 | 154 tests automatiques, exécutés à chaque modification |
 | Matériel réel | 🔴 | Pas encore : aucune exécution sur du matériel réel n'est consignée pour cette version |
 | Documentation | 🟢 | README en huit langues, vérifié par rapport au manifeste à chaque modification |
 
@@ -72,6 +72,7 @@ Aujourd'hui, c'est la surface d'état unique devant le serveur OPC-UA, le broker
 * 🔐 **Authentification de l'appelant par commande :** `POST /command` accepte aussi un `GATEWAY_JWT_SECRET` optionnel - une fois défini, chaque requête doit porter un `Authorization: Bearer <token>` valide (HS256, algorithme fixé explicitement) sous peine d'être rejetée avant même d'atteindre la liste d'autorisation. Indépendant du mTLS : ceci identifie QUI a émis la commande, le mTLS (s'il est configuré) identifie le pair TLS.
 * 🎫 **Scopes par protocole et opération :** un jeton doit nommer dans `scope` ce qu'il peut faire (`mqtt:publish`, `opc-ua:read`, `mtconnect:read`, `<protocole>:*` ou `*`) ; un jeton valide sans le scope de la commande est refusé avec 403. `GATEWAY_REQUIRE_SCOPES=0` accepte tout jeton valide, et `GATEWAY_CERT_SCOPES` donne des scopes à un certificat client listé. Le fichier compose ne publie le broker MQTT qu'en TLS (`MQTT_TLS_DIR`). *(implémenté)*
 * 🧱 **Politique de production et résultats honnêtes :** La passerelle refuse de démarrer, dans n'importe quel environnement (le compose définit `NODE_ENV=production`), sans un vrai `GATEWAY_JWT_SECRET` (32+ caractères, pas un exemple ; `GATEWAY_ALLOW_ANONYMOUS=1` dit volontairement qu'il s'agit d'une passerelle de laboratoire ouverte). L'exécuteur par défaut ne fait que sonder l'enfant : il répond donc `501` avec le résultat `probe_only` (rien n'a été exécuté) au lieu de `accepted` ; un `publish` MQTT ne peut viser que l'espace propre de la passerelle (`hydra/gateway/#`, ou `GATEWAY_MQTT_PUBLISH_TOPICS`) et jamais un topic de commande de bridge (`hydra/bridges/...`) ni `$SYS` ; `GATEWAY_BIND_HOST` choisit l'interface. Les jetons doivent porter `exp` et `sub` (et `aud` si `GATEWAY_JWT_AUDIENCE` est défini) ; la passerelle écoute sur 127.0.0.1 sauf si `GATEWAY_BIND_HOST` dit autre chose. *(implémenté)*
+* 🔏 **La chaîne d'audit de la porte d'écriture est signée et peut être gardée sur disque :** avec les écritures activées, chaque enregistrement porte une signature HMAC-SHA256 (`GATEWAY_WRITE_AUDIT_KEY_FILE`), `GET /command/write-audit` répond avec la tête de la chaîne pour repérer une queue coupée, et `GATEWAY_WRITE_AUDIT_FILE` conserve les enregistrements d'un redémarrage à l'autre ; aucune écriture n'est acceptée dès qu'un enregistrement ne peut pas être écrit. Il n'existe toujours pas d'exécuteur qui écrive dans un vrai automate ; le contrat qu'il doit respecter est dans `docs/API.md`.
 
 **Vérification d'honnêteté - ce qui fonctionne réellement aujourd'hui :** `POST /command { protocol, operation, target }` est réel : l'opération doit être explicitement listée pour son protocole (`403` sinon - v0 n'autorise que les opérations de type lecture/publication, rien qui écrive sur un PLC en direct), pas plus qu'un nombre borné de commandes ne s'exécutent à la fois (`429` au-delà), et une commande qui ne se résout pas à temps est signalée comme expirée (`504`) plutôt que laissée en attente indéfiniment. Le chemin d'exécution par défaut réutilise les propres sondes d'accessibilité réelles de ce projet - honnête sur le fait qu'il n'effectue pas encore une vraie écriture au niveau protocole OPC-UA/MQTT/MTConnect, puisqu'aucun des trois enfants n'expose encore de vraie API de commande non plus. Voir `CHANGELOG.md` pour ce qui a été livré exactement.
 
@@ -151,7 +152,7 @@ npm start
 
 ## 🧪 Tests
 
-146 tests automatiques s'exécutent avec `npm test`. Ils n'ont besoin ni de matériel ni de rien en dehors de cette machine.
+154 tests automatiques s'exécutent avec `npm test`. Ils n'ont besoin ni de matériel ni de rien en dehors de cette machine.
 
 La CI exécute `HYDRA_UMC_CI=1 python tools/ci_validate.py`, qui vérifie le manifeste, les documents, les huit README et les images.
 
@@ -223,6 +224,8 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── src/                       code source
 │   ├── probes.ts              Vraies vérifications d'accessibilité TCP/HTTP par enfant
 │   ├── command.ts             Vrai CommandDispatcher : liste d'autorisation + backpressure + timeout
+│   ├── writeGate.ts           Porte d'écriture vers un automate
+│   ├── writeAuditStore.ts     Chaîne d'audit sur disque
 │   ├── version.ts             Vraie version du paquet à l'exécution, lue depuis package.json
 │   ├── server.ts              App Express : GET /status, POST /command
 │   ├── audit.ts               Piste d'audit immuable de chaque POST /command (qui a demandé quoi et ce qui s'est passé)

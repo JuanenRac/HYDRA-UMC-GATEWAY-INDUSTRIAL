@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-146%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-154%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.8-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,7 +36,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | Version | `0.1.8` |
 | Reifegrad | Funktionsfähig |
-| Tests | 146 (`npm test`) |
+| Tests | 154 (`npm test`) |
 | Technik | Node.js / Express / real TCP/HTTP reachability probes |
 | Ziel | Der Raspberry Pi CM5 einer HYDRA-UMC-Zelle |
 | Auf echter Hardware | Noch nicht: für diese Version ist kein Lauf auf echter Hardware vermerkt |
@@ -52,7 +52,7 @@ Jede Zeile ist ein Teil dieses Repositorys, und die Ampel sagt, wie weit er heut
 | Bereich | Stand | Was das hier bedeutet |
 |---|---|---|
 | Software | 🟡 | Funktioniert für seinen Hauptzweck; die Ehrlichkeitsprüfung oben nennt, was noch fehlt |
-| Tests | 🟢 | 146 automatische Tests, bei jeder Änderung ausgeführt |
+| Tests | 🟢 | 154 automatische Tests, bei jeder Änderung ausgeführt |
 | Echte Hardware | 🔴 | Noch nicht: für diese Version ist kein Lauf auf echter Hardware vermerkt |
 | Dokumentation | 🟢 | README in acht Sprachen, bei jeder Änderung gegen das Manifest geprüft |
 
@@ -72,6 +72,7 @@ Heute ist es die einzige Statusfläche vor dem OPC-UA-Server, dem MQTT-Broker un
 * 🔐 **Aufrufer-Authentifizierung pro Befehl:** `POST /command` unterstützt zusätzlich das optionale `GATEWAY_JWT_SECRET` - einmal gesetzt, benötigt jede Anfrage einen gültigen `Authorization: Bearer <token>` (HS256, Algorithmus explizit festgelegt), sonst wird sie abgelehnt, bevor sie die Allowlist überhaupt erreicht. Unabhängig von mTLS: dies identifiziert, WER den Befehl ausgegeben hat, mTLS (falls konfiguriert) identifiziert den TLS-Peer.
 * 🎫 **Scopes pro Protokoll und Operation:** Ein Token muss in `scope` nennen, was es darf (`mqtt:publish`, `opc-ua:read`, `mtconnect:read`, `<Protokoll>:*` oder `*`); ein gültiges Token ohne den Scope des Befehls wird mit 403 abgelehnt. `GATEWAY_REQUIRE_SCOPES=0` akzeptiert jedes gültige Token, und `GATEWAY_CERT_SCOPES` vergibt Scopes an ein gelistetes Client-Zertifikat. Die Compose-Datei veröffentlicht den MQTT-Broker nur über TLS (`MQTT_TLS_DIR`). *(implementiert)*
 * 🧱 **Produktionsrichtlinie und ehrliche Ergebnisse:** Das Gateway verweigert den Start in jeder Umgebung (die Compose-Datei setzt `NODE_ENV=production`) ohne ein echtes `GATEWAY_JWT_SECRET` (32+ Zeichen, kein Beispiel; `GATEWAY_ALLOW_ANONYMOUS=1` sagt absichtlich, dass es ein offenes Labor-Gateway ist). Der Standard-Executor prüft das Kind nur, antwortet also mit `501` und dem Ergebnis `probe_only` (es wurde nichts ausgeführt) statt mit `accepted`; ein MQTT-`publish` darf nur den eigenen Namensraum des Gateways (`hydra/gateway/#` oder `GATEWAY_MQTT_PUBLISH_TOPICS`) treffen und nie ein Bridge-Befehlsthema (`hydra/bridges/...`) oder `$SYS`; `GATEWAY_BIND_HOST` wählt die Schnittstelle. Tokens müssen `exp` und `sub` enthalten (und `aud`, wenn `GATEWAY_JWT_AUDIENCE` gesetzt ist); das Gateway lauscht auf 127.0.0.1, sofern `GATEWAY_BIND_HOST` nichts anderes sagt. *(implementiert)*
+* 🔏 **Die Audit-Kette der Schreibschranke ist signiert und kann auf Platte gehalten werden:** bei aktivierten Schreibzugriffen trägt jeder Eintrag eine HMAC-SHA256-Signatur (`GATEWAY_WRITE_AUDIT_KEY_FILE`), `GET /command/write-audit` liefert den Kopf der Kette, damit ein abgeschnittenes Ende auffällt, und `GATEWAY_WRITE_AUDIT_FILE` bewahrt die Einträge über Neustarts auf; ist ein Eintrag nicht schreibbar, wird kein Schreibzugriff mehr angenommen. Einen Executor, der in eine echte SPS schreibt, gibt es weiterhin nicht; der Vertrag, den er einhalten muss, steht in `docs/API.md`.
 
 **Ehrlichkeitscheck - was heute wirklich läuft:** `POST /command { protocol, operation, target }` ist echt: die Operation muss für ihr Protokoll explizit auf der Allowlist stehen (`403`, wenn nicht - v0 erlaubt nur lese-/veröffentlichungsartige Operationen, nichts, was einen laufenden SPS-Zustand verändert), es laufen nie mehr als eine begrenzte Anzahl Befehle gleichzeitig (`429` darüber hinaus), und ein Befehl, der nicht rechtzeitig aufgelöst wird, wird als abgelaufen gemeldet (`504`), statt endlos zu hängen. Der Standard-Ausführungspfad nutzt die eigenen echten Erreichbarkeits-Sonden dieses Projekts wieder - ehrlich darüber, dass noch kein echtes protokollseitiges Schreiben (OPC-UA/MQTT/MTConnect) stattfindet, da auch keines der drei Kinder bislang eine echte Befehls-API bereitstellt. Siehe `CHANGELOG.md` für genau das, was geliefert wurde.
 
@@ -151,7 +152,7 @@ npm start
 
 ## 🧪 Tests
 
-146 automatische Tests laufen mit `npm test`. Sie brauchen weder Hardware noch etwas außerhalb dieses Rechners.
+154 automatische Tests laufen mit `npm test`. Sie brauchen weder Hardware noch etwas außerhalb dieses Rechners.
 
 Die CI führt `HYDRA_UMC_CI=1 python tools/ci_validate.py` aus; das prüft das Manifest, die Dokumente, die acht READMEs und die Bilder.
 
@@ -224,6 +225,8 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── src/                       Quellcode
 │   ├── probes.ts              Echte TCP/HTTP-Erreichbarkeitsprüfungen je Kind
 │   ├── command.ts             Echter CommandDispatcher: Allowlist + Backpressure + Timeout
+│   ├── writeGate.ts           Schranke für Schreibzugriffe
+│   ├── writeAuditStore.ts     Audit-Kette auf Platte
 │   ├── version.ts             Echte Paketversion zur Laufzeit, gelesen aus package.json
 │   ├── server.ts              Express-App: GET /status, POST /command
 │   ├── audit.ts               Unveränderlicher Audit-Verlauf jedes POST /command (wer was verlangt hat und was geschah)

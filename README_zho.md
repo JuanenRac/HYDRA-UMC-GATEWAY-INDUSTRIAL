@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-146%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-154%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.8-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,7 +36,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | 版本 | `0.1.8` |
 | 成熟度 | 可用 |
-| 测试 | 146 (`npm test`) |
+| 测试 | 154 (`npm test`) |
 | 技术栈 | Node.js / Express / real TCP/HTTP reachability probes |
 | 目标 | HYDRA-UMC 工作单元的 Raspberry Pi CM5 |
 | 真实硬件 | 尚未：此版本没有在真实硬件上运行的记录 |
@@ -52,7 +52,7 @@ GPL-3.0-or-later - see LICENSE
 | 领域 | 状态 | 在这里的含义 |
 |---|---|---|
 | 软件 | 🟡 | 主要用途可用；上面的诚实性检查列出了仍然缺少的内容 |
-| 测试 | 🟢 | 146 项自动测试，每次变更都会运行 |
+| 测试 | 🟢 | 154 项自动测试，每次变更都会运行 |
 | 真实硬件 | 🔴 | 尚未：此版本没有在真实硬件上运行的记录 |
 | 文档 | 🟢 | 八种语言的 README，每次变更都会与清单核对 |
 
@@ -77,6 +77,7 @@ IIoT 平台进行交互。
 * 🔐 **按命令的调用方身份认证：** `POST /command` 还支持可选的 `GATEWAY_JWT_SECRET`——一旦设置,每个请求都必须携带有效的 `Authorization: Bearer <token>`(HS256,算法显式固定),否则会在到达白名单之前就被拒绝。与 mTLS 相互独立:这里识别的是"谁发出了命令",mTLS(如果配置)识别的是 TLS 对端。
 * 🎫 **按协议和操作划分的 scope：** 令牌必须在 `scope` 中写明它可以做什么（`mqtt:publish`、`opc-ua:read`、`mtconnect:read`、`<协议>:*` 或 `*`）；有效但没有该命令 scope 的令牌会被以 403 拒绝。`GATEWAY_REQUIRE_SCOPES=0` 接受任何有效令牌，`GATEWAY_CERT_SCOPES` 为列表中的客户端证书授予 scope。compose 文件只通过 TLS 发布 MQTT broker（`MQTT_TLS_DIR`）。*(已实现)*
 * 🧱 **生产策略与诚实的结果：** 网关在任何环境下（compose 设置 `NODE_ENV=production`），没有真实的 `GATEWAY_JWT_SECRET`（32 个字符以上，且不是示例值）时都会拒绝启动（`GATEWAY_ALLOW_ANONYMOUS=1` 表示有意运行开放的实验室网关）。默认执行器只探测子服务，因此以结果 `probe_only`（未执行任何操作）返回 `501`，而不是 `accepted`；MQTT `publish` 只能发往网关自己的命名空间（`hydra/gateway/#`，或 `GATEWAY_MQTT_PUBLISH_TOPICS`），绝不能发往桥接器的命令主题（`hydra/bridges/...`）或 `$SYS`；`GATEWAY_BIND_HOST` 选择绑定的网卡。令牌必须带有 `exp` 和 `sub`（若设置了 `GATEWAY_JWT_AUDIENCE` 还需 `aud`）；除非 `GATEWAY_BIND_HOST` 另有指定，网关只监听 127.0.0.1。*（已实现）*
+* 🔏 **写入闸门的审计链已签名，并可保存在磁盘上：** 开启写入后，每条记录都带有 HMAC-SHA256 签名（`GATEWAY_WRITE_AUDIT_KEY_FILE`），`GET /command/write-audit` 返回链头，便于发现被截断的尾部；`GATEWAY_WRITE_AUDIT_FILE` 在重启之间保留记录，一旦记录无法写入便不再接受任何写入。目前仍没有向真实 PLC 写入的执行器，它必须遵守的契约见 `docs/API.md`。
 
 **诚实说明——今天实际运行的内容：** `POST /command { protocol, operation, target }` 是真实的：该操作必须已明确列入其协议的白名单（否则返回 `403`——v0 只允许读取/发布类操作，不允许任何会写入正在运行的 PLC 的操作），同时运行的命令数量不超过一个上限（超出则返回 `429`），未在规定时间内完成的命令会被报告为超时（`504`）而不是被无限期挂起。默认的执行路径复用了本项目自身真实的可达性探测——诚实地说明它还没有执行真正的 OPC-UA/MQTT/MTConnect 协议层写操作，因为这三个子服务目前也都还没有暴露真正的命令 API。具体已交付内容请参见 `CHANGELOG.md`。
 
@@ -154,7 +155,7 @@ npm start
 
 ## 🧪 测试
 
-运行 `npm test` 会执行 146 个自动测试。 不需要硬件，也不需要这台机器以外的任何东西。
+运行 `npm test` 会执行 154 个自动测试。 不需要硬件，也不需要这台机器以外的任何东西。
 
 CI 运行 `HYDRA_UMC_CI=1 python tools/ci_validate.py`，检查清单、文档、八个 README 和图片。
 
@@ -225,6 +226,8 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── src/                       源代码
 │   ├── probes.ts              每个子服务的真实 TCP/HTTP 可达性检查
 │   ├── command.ts             真实的 CommandDispatcher：白名单 + 背压 + 超时
+│   ├── writeGate.ts           控制器写入闸门
+│   ├── writeAuditStore.ts     审计链落盘
 │   ├── version.ts             运行时从 package.json 读取的真实包版本号
 │   ├── server.ts              Express 应用：GET /status、POST /command
 │   ├── audit.ts               每个 POST /command 的不可变审计轨迹 (谁请求了什么、结果如何)

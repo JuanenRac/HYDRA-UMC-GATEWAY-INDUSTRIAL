@@ -10,8 +10,15 @@ import jwt from "jsonwebtoken";
 import request from "supertest";
 import { buildApp } from "../src/server.js";
 import { CommandDispatcher } from "../src/command.js";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileAuditSink, loadAuditFile, readAuditKey } from "../src/writeAuditStore.js";
 import {
+  MIN_AUDIT_KEY_LENGTH,
   WriteGate,
+  chainContainsHead,
+  chainHead,
   createSimulatedController,
   parseWriteRules,
   valueProblem,
@@ -188,6 +195,136 @@ describe("the chain of decisions", () => {
     expect(verifyChain([records[0], records[2], records[3]])).toBe(false);
     // the tail may be cut off without breaking the part that remains (it is a chain, not a signature)
     expect(verifyChain(records.slice(0, 2))).toBe(true);
+  });
+});
+
+describe("the signed chain", () => {
+  const KEY = "k".repeat(MIN_AUDIT_KEY_LENGTH);
+  async function someDecisions(gate: WriteGate) {
+    const p = await gate.prepare("tech", "ns=2;s=Line1.Setpoint", 10);
+    if (!p.ok) throw new Error("prepare");
+    await gate.commit("tech", p.confirmId);
+    gate.recordExecution("tech", "ns=2;s=Line1.Setpoint", "accepted");
+  }
+
+  it("signs every record and checks the signatures with the key", async () => {
+    const t = clock();
+    const gate = new WriteGate({ enabled: true, rules: RULES, cellState: async () => ({ state: "READY", atMs: t.now() }), now: t.now, auditKey: KEY });
+    await someDecisions(gate);
+    const records = [...gate.auditChain()];
+    expect(gate.signed).toBe(true);
+    expect(records.every((r) => typeof r.sig === "string" && r.sig.length === 64)).toBe(true);
+    expect(verifyChain(records, KEY)).toBe(true);
+    expect(gate.verify()).toBe(true);
+    // the hash chain alone passes without the key, and a wrong key does not
+    expect(verifyChain(records)).toBe(true);
+    expect(verifyChain(records, "x".repeat(MIN_AUDIT_KEY_LENGTH))).toBe(false);
+  });
+
+  it("does not pass when someone rebuilds the chain without the key", async () => {
+    const t = clock();
+    const gate = new WriteGate({ enabled: true, rules: RULES, cellState: async () => ({ state: "READY", atMs: t.now() }), now: t.now, auditKey: KEY });
+    await someDecisions(gate);
+    const unsigned = gate.auditChain().map(({ sig: _sig, ...rest }) => rest);
+    expect(verifyChain(unsigned, KEY)).toBe(false);
+    const forged = gate.auditChain().map((r) => ({ ...r, sig: "0".repeat(64) }));
+    expect(verifyChain(forged, KEY)).toBe(false);
+  });
+
+  it("notices a cut tail through the head that was kept", async () => {
+    const t = clock();
+    const gate = new WriteGate({ enabled: true, rules: RULES, cellState: async () => ({ state: "READY", atMs: t.now() }), now: t.now, auditKey: KEY });
+    await someDecisions(gate);
+    const records = [...gate.auditChain()];
+    const head = chainHead(records);
+    expect(head).toEqual({ seq: 3, hash: records[2].hash, sig: records[2].sig });
+    expect(chainContainsHead(records, head!)).toBe(true);
+    expect(chainContainsHead(records.slice(0, 2), head!)).toBe(false);
+    expect(chainHead([])).toBeNull();
+  });
+
+  it("refuses a key that is too short", () => {
+    expect(() => new WriteGate({ enabled: true, auditKey: "short" })).toThrow(/at least 32/);
+  });
+});
+
+describe("the chain on disk", () => {
+  const KEY = "k".repeat(MIN_AUDIT_KEY_LENGTH);
+  let dir: string;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "gw-audit-"));
+  });
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  function gateOn(file: string, t: ReturnType<typeof clock>, key: string | undefined = KEY) {
+    return new WriteGate({
+      enabled: true,
+      rules: RULES,
+      cellState: async () => ({ state: "READY", atMs: t.now() }),
+      now: t.now,
+      ...(key !== undefined ? { auditKey: key } : {}),
+      auditSink: fileAuditSink(file),
+      resume: loadAuditFile(file, key),
+    });
+  }
+
+  it("continues the chain after a restart", async () => {
+    const file = path.join(dir, "audit.jsonl");
+    const t = clock();
+    const first = gateOn(file, t);
+    await first.prepare("tech", "ns=2;s=Line1.Setpoint", 10);
+    const second = gateOn(file, t);
+    expect(second.auditChain()).toHaveLength(1);
+    await second.prepare("tech", "ns=2;s=Line1.Setpoint", 11);
+    const records = loadAuditFile(file, KEY);
+    expect(records.map((r) => r.seq)).toEqual([1, 2]);
+    expect(records[1].prevHash).toBe(records[0].hash);
+    expect(verifyChain(records, KEY)).toBe(true);
+  });
+
+  it("refuses to start from a file that was edited, or signed with another key", async () => {
+    const file = path.join(dir, "audit.jsonl");
+    const t = clock();
+    const gate = gateOn(file, t);
+    await gate.prepare("tech", "ns=2;s=Line1.Setpoint", 10);
+    await gate.prepare("tech", "ns=2;s=Line1.Setpoint", 11);
+    expect(() => loadAuditFile(file, "z".repeat(MIN_AUDIT_KEY_LENGTH))).toThrow(/does not verify/);
+    const lines = fs.readFileSync(file, "utf8").split("\n").filter(Boolean);
+    const edited = JSON.parse(lines[0]);
+    edited.detail = "value 99, confirmation valid until later";
+    fs.writeFileSync(file, `${JSON.stringify(edited)}\n${lines[1]}\n`);
+    expect(() => loadAuditFile(file, KEY)).toThrow(/does not verify/);
+    fs.writeFileSync(file, "not json\n");
+    expect(() => loadAuditFile(file, KEY)).toThrow(/not JSON/);
+  });
+
+  it("accepts no write once the trail cannot be written", async () => {
+    const t = clock();
+    const gate = new WriteGate({
+      enabled: true,
+      rules: RULES,
+      cellState: async () => ({ state: "READY", atMs: t.now() }),
+      now: t.now,
+      auditSink: () => {
+        throw new Error("disk full");
+      },
+    });
+    const first = await gate.prepare("tech", "ns=2;s=Line1.Setpoint", 10);
+    expect(first.ok).toBe(true);
+    expect(gate.auditSinkFailures).toBeGreaterThan(0);
+    const second = await gate.prepare("tech", "ns=2;s=Line1.Setpoint", 11);
+    expect(second).toEqual({ ok: false, reason: expect.stringContaining("audit trail could not be written") });
+    if (first.ok) expect(await gate.commit("tech", first.confirmId)).toEqual({ ok: false, reason: expect.stringContaining("audit trail could not be written") });
+  });
+
+  it("reads the key from a file and refuses a short one", () => {
+    const keyFile = path.join(dir, "key");
+    fs.writeFileSync(keyFile, `${KEY}\n`);
+    expect(readAuditKey(keyFile)).toBe(KEY);
+    fs.writeFileSync(keyFile, "short");
+    expect(() => readAuditKey(keyFile)).toThrow(/at least 32/);
   });
 });
 

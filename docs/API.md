@@ -206,6 +206,20 @@ Off by default: with `GATEWAY_WRITES` unset, `write` and `write_commit` are not 
    `{"operation": "write_commit", "target": ..., "confirmId": ...}` releases it: the id lasts `GATEWAY_WRITE_CONFIRM_TTL_MS` (default 30000, at most 300000), can be used once and only by the caller it was handed to (the `sub` of the token); a wrong try burns it. A refusal is `403` `rejected_write` with the reason.
 3. **The state of the cell.** Both steps read `GATEWAY_CELL_STATE_URL` (a GET answering the `SafetyState` of the SDK: `{"state": "READY", "timestamp_utc": "..."}`). Only a READY not older than `GATEWAY_CELL_STATE_MAX_AGE_MS` (default 2000) lets a write through; INHIBITED, FAULT, SAFE_STOP, an old reading, an unreadable one or no source refuse.
 4. **Scopes.** A token needs `opc-ua:write` for the first step and `opc-ua:write_commit` for the second (or `opc-ua:*`).
-5. **A chain of decisions.** Every decision is recorded with the SHA-256 of the previous record; `GET /command/write-audit` (same authentication as `POST /command`) lists the last 1000 records and says whether the chain is intact. The chain shows that records were not edited or removed in the middle; it is not signed, and cutting off its tail is not detected.
+5. **A signed chain of decisions.** Every decision is recorded with the SHA-256 of the previous record and, unless `GATEWAY_WRITE_AUDIT_SIGNING=off`, an HMAC-SHA256 signature of that hash with the key in `GATEWAY_WRITE_AUDIT_KEY_FILE` (at least 32 characters; the start fails without it, so an unsigned chain is a choice made on purpose). `GET /command/write-audit` (same authentication as `POST /command`) lists the last 1000 records and answers `chainIntact`, `signed` and `head` (`seq`, `hash`, `sig` of the newest record). A record edited or removed in the middle breaks the chain; without the key nobody can rebuild it with valid signatures; a verifier that keeps an earlier `head` notices a cut tail when a later answer no longer holds that record. `GATEWAY_WRITE_AUDIT_FILE` keeps the records on disk (one JSON line each, owner-only permissions): the start reads the file back and refuses to run from one that does not verify, and if a record cannot be written no write is accepted until the gateway is restarted.
+
+### Contract for a real write executor
+
+The gate is complete and has no consumer that writes to a PLC yet. The first real executor (a `CommandExecutor` for OPC-UA, Modbus or S7) must keep these rules:
+
+- It receives a write only from the second step, after the gate released it: `{protocol, operation: "write", target, value, caller}`. It must never be reachable by any other path, and it performs nothing for an operation other than `write`.
+- It writes exactly the node and the value it was given, with the data type of the rule (no conversion that changes the value), and reads the value back when the protocol allows it.
+- It answers `{ok: true}` only when the controller confirmed the write, `{ok: false, detail}` when it did not, and `executed: false` for anything it only probed. A timeout is an answer too: the gateway records every outcome in the chain (`write_executed`).
+- It holds no credentials in the repository or in the logs; they come from the environment or a file with owner-only permissions.
+- It brings a test with the simulated controller (`createSimulatedController`) as the model, and the tests of the gate keep passing with it.
+
+The adapter for the URTC tool heads is meant to be a connector of this gateway (read only first, through HYDRA-UMC-CONNECTOR-HUB); its writes will follow this same gate.
+
+Modbus and S7 follow the same gate once their executors exist: a rule names the register or the data block address as the `target`, with the same type and range.
 
 No executor that writes to a real PLC exists: with the default executor a committed write ends as `probe_only` (`501`) and nothing was written. `GATEWAY_WRITE_SIMULATED=1` sends the writes to an in-memory controller to try the whole path without a PLC.

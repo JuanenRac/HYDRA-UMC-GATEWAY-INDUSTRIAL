@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-146%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-154%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.8-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,7 +36,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | Versión | `0.1.8` |
 | Madurez | Funcional |
-| Tests | 146 (`npm test`) |
+| Tests | 154 (`npm test`) |
 | Tecnología | Node.js / Express / real TCP/HTTP reachability probes |
 | Destino | La Raspberry Pi CM5 de una celda HYDRA-UMC |
 | En hardware real | Todavía no: no consta ninguna ejecución en hardware real para esta versión |
@@ -52,7 +52,7 @@ Cada línea es una parte de este repositorio y la luz dice hasta dónde llega ho
 | Área | Estado | Qué significa aquí |
 |---|---|---|
 | Software | 🟡 | Funciona para su propósito principal; la comprobación de honestidad de arriba lista lo que aún falta |
-| Pruebas | 🟢 | 146 pruebas automáticas, ejecutadas en cada cambio |
+| Pruebas | 🟢 | 154 pruebas automáticas, ejecutadas en cada cambio |
 | Hardware real | 🔴 | Todavía no: no consta ninguna ejecución en hardware real para esta versión |
 | Documentación | 🟢 | README en ocho idiomas, comprobado contra el manifiesto en cada cambio |
 
@@ -72,6 +72,7 @@ Hoy es la superficie de estado única delante del servidor OPC-UA, el broker MQT
 * 🔐 **Autenticación por Llamador en Cada Comando:** `POST /command` admite también `GATEWAY_JWT_SECRET` de forma opcional - una vez configurado, cada petición necesita un `Authorization: Bearer <token>` válido (HS256, algoritmo fijado explícitamente) o se rechaza antes de llegar a la allowlist. Independiente de mTLS: esto identifica QUIÉN emitió el comando, mTLS (si está configurado) identifica al peer TLS.
 * 🎫 **Scopes por protocolo y operación:** un token debe nombrar en `scope` lo que puede hacer (`mqtt:publish`, `opc-ua:read`, `mtconnect:read`, `<protocolo>:*` o `*`); un token válido sin el scope del comando se rechaza con 403. `GATEWAY_REQUIRE_SCOPES=0` acepta cualquier token válido, y `GATEWAY_CERT_SCOPES` da scopes a un certificado de cliente listado. El archivo compose publica el broker MQTT solo con TLS (`MQTT_TLS_DIR`). *(implementado)*
 * 🧱 **Política de producción y resultados honestos:** El gateway se niega a arrancar, en cualquier entorno (el compose fija `NODE_ENV=production`), sin un `GATEWAY_JWT_SECRET` real (32+ caracteres, no de ejemplo; `GATEWAY_ALLOW_ANONYMOUS=1` dice a propósito que es un gateway abierto de laboratorio). El ejecutor por defecto solo sondea al hijo, así que responde `501` con resultado `probe_only` (no se ejecutó nada) en vez de `accepted`; un `publish` MQTT solo puede ir al espacio propio del gateway (`hydra/gateway/#`, o `GATEWAY_MQTT_PUBLISH_TOPICS`) y nunca a un tema de órdenes de un bridge (`hydra/bridges/...`) ni a `$SYS`; `GATEWAY_BIND_HOST` elige la interfaz. Los tokens deben llevar `exp` y `sub` (y `aud` si se define `GATEWAY_JWT_AUDIENCE`); el gateway escucha en 127.0.0.1 salvo que `GATEWAY_BIND_HOST` diga otra cosa. *(implementado)*
+* 🔏 **La cadena de auditoría de la puerta de escritura está firmada y puede guardarse en disco:** con las escrituras activadas, cada registro lleva una firma HMAC-SHA256 (`GATEWAY_WRITE_AUDIT_KEY_FILE`), `GET /command/write-audit` responde con la cabeza de la cadena para notar una cola cortada, y `GATEWAY_WRITE_AUDIT_FILE` conserva los registros entre reinicios; no se acepta ninguna escritura cuando un registro no puede guardarse. Sigue sin haber un ejecutor que escriba en un PLC real; el contrato que debe cumplir está en `docs/API.md`.
 
 **Comprobación de honestidad - qué funciona hoy de verdad:** `POST /command { protocol, operation, target }` es real: la operación debe estar explícitamente en la allowlist de su protocolo (`403` si no lo está - v0 solo permite operaciones de lectura/publicación, nada que escriba en un PLC en vivo), no se ejecuta más de un número acotado de comandos a la vez (`429` por encima de eso), y un comando que no se resuelve a tiempo se reporta como agotado (`504`) en vez de dejarse colgado. La ruta de ejecución por defecto reutiliza las sondas de alcanzabilidad reales de este proyecto - honesto en que se queda corto de una escritura real a nivel de protocolo OPC-UA/MQTT/MTConnect, ya que ninguno de los tres hijos expone todavía una API de comandos real tampoco. Ver `CHANGELOG.md` para lo entregado exactamente.
 
@@ -150,7 +151,7 @@ npm start
 
 ## 🧪 Pruebas
 
-146 pruebas automáticas se ejecutan con `npm test`. No necesitan hardware ni nada fuera de esta máquina.
+154 pruebas automáticas se ejecutan con `npm test`. No necesitan hardware ni nada fuera de esta máquina.
 
 El CI ejecuta `HYDRA_UMC_CI=1 python tools/ci_validate.py`, que comprueba el manifiesto, los documentos, los ocho README y las imágenes.
 
@@ -222,6 +223,8 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── src/                       código fuente
 │   ├── probes.ts              Comprobaciones reales de alcanzabilidad TCP/HTTP por hijo
 │   ├── command.ts             CommandDispatcher real: allowlist + backpressure + timeout
+│   ├── writeGate.ts           Puerta de escritura a un controlador
+│   ├── writeAuditStore.ts     Cadena de auditoría en disco
 │   ├── version.ts             Versión real del paquete en tiempo de ejecución, leída de package.json
 │   ├── server.ts              App Express: GET /status, POST /command
 │   ├── audit.ts               Rastro de auditoría inmutable de cada POST /command (quién pidió qué y qué pasó)

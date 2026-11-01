@@ -69,6 +69,52 @@
           }
         },
         {
+          "name": "writeGate.ts",
+          "desc": {
+            "en": "Gate for writes to a controller",
+            "es": "Puerta de escritura a un controlador",
+            "de": "Schranke für Schreibzugriffe",
+            "fr": "Porte d'écriture vers un automate",
+            "it": "Porta di scrittura verso un controllore",
+            "ja": "コントローラーへの書き込みゲート",
+            "zh": "控制器写入闸门",
+            "pt": "Porta de escrita para um controlador"
+          },
+          "tree_desc": {
+            "en": "Gate for writes to a controller",
+            "es": "Puerta de escritura a un controlador",
+            "de": "Schranke für Schreibzugriffe",
+            "fr": "Porte d'écriture vers un automate",
+            "it": "Porta di scrittura verso un controllore",
+            "ja": "コントローラーへの書き込みゲート",
+            "zh": "控制器写入闸门",
+            "pt": "Porta de escrita para um controlador"
+          }
+        },
+        {
+          "name": "writeAuditStore.ts",
+          "desc": {
+            "en": "Audit chain of the gate, on disk",
+            "es": "Cadena de auditoría en disco",
+            "de": "Audit-Kette auf Platte",
+            "fr": "Chaîne d'audit sur disque",
+            "it": "Catena di audit su disco",
+            "ja": "監査チェーンのディスク保存",
+            "zh": "审计链落盘",
+            "pt": "Cadeia de auditoria em disco"
+          },
+          "tree_desc": {
+            "en": "Audit chain of the gate, on disk",
+            "es": "Cadena de auditoría en disco",
+            "de": "Audit-Kette auf Platte",
+            "fr": "Chaîne d'audit sur disque",
+            "it": "Catena di audit su disco",
+            "ja": "監査チェーンのディスク保存",
+            "zh": "审计链落盘",
+            "pt": "Cadeia de auditoria em disco"
+          }
+        },
+        {
           "name": "version.ts",
           "desc": {
             "en": "Real package version at runtime",

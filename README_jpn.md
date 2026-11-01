@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-146%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-154%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.8-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,7 +36,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | バージョン | `0.1.8` |
 | 成熟度 | 機能する |
-| テスト | 146 (`npm test`) |
+| テスト | 154 (`npm test`) |
 | 技術 | Node.js / Express / real TCP/HTTP reachability probes |
 | 対象 | HYDRA-UMC セルの Raspberry Pi CM5 |
 | 実機での確認 | まだです：このバージョンについて実機での動作記録はありません |
@@ -52,7 +52,7 @@ GPL-3.0-or-later - see LICENSE
 | 領域 | 状態 | ここでの意味 |
 |---|---|---|
 | ソフトウェア | 🟡 | 主な目的では動作します。足りない点は上の正直さの確認に書かれています |
-| テスト | 🟢 | 自動テスト 146 件。変更のたびに実行されます |
+| テスト | 🟢 | 自動テスト 154 件。変更のたびに実行されます |
 | 実機 | 🔴 | まだです：このバージョンについて実機での動作記録はありません |
 | ドキュメント | 🟢 | 8 言語の README。変更のたびにマニフェストと照合されます |
 
@@ -79,6 +79,7 @@ GPL-3.0-or-later - see LICENSE
 * 🔐 **コマンドごとの呼び出し元認証：** `POST /command` はオプションの `GATEWAY_JWT_SECRET` にも対応しています——設定すると、すべてのリクエストに有効な `Authorization: Bearer <token>`（HS256、アルゴリズムは明示的に固定）が必要になり、なければアローリストに到達する前に拒否されます。mTLS とは独立しています：これは「誰がコマンドを発行したか」を識別し、mTLS（設定されている場合）は TLS ピアを識別します。
 * 🎫 **プロトコルと操作ごとのスコープ：** トークンは `scope` に許可される操作（`mqtt:publish`、`opc-ua:read`、`mtconnect:read`、`<プロトコル>:*`、`*`）を示す必要があります。コマンドのスコープを持たない有効なトークンは 403 で拒否されます。`GATEWAY_REQUIRE_SCOPES=0` は有効なトークンをすべて受け入れ、`GATEWAY_CERT_SCOPES` は一覧にあるクライアント証明書にスコープを与えます。compose ファイルは MQTT ブローカーを TLS のみで公開します（`MQTT_TLS_DIR`）。*(実装済み)*
 * 🧱 **本番ポリシーと正直な結果：** ゲートウェイは、どの環境でも（compose は `NODE_ENV=production` を設定します）、本物の `GATEWAY_JWT_SECRET`（32 文字以上、例の値でないもの）がないと起動を拒否します（`GATEWAY_ALLOW_ANONYMOUS=1` は、意図的にオープンなラボ用ゲートウェイであることを示します）。デフォルトの executor は子サービスを疎通確認するだけなので、`accepted` ではなく結果 `probe_only`（何も実行されていない）として `501` を返します。MQTT の `publish` はゲートウェイ自身の名前空間（`hydra/gateway/#`、または `GATEWAY_MQTT_PUBLISH_TOPICS`）にのみ送れ、ブリッジのコマンドトピック（`hydra/bridges/...`）や `$SYS` には決して送れません。`GATEWAY_BIND_HOST` でバインドするインターフェースを選べます。トークンには `exp` と `sub`（`GATEWAY_JWT_AUDIENCE` を設定した場合は `aud` も）が必要で、`GATEWAY_BIND_HOST` で指定しない限り 127.0.0.1 で待ち受けます。*（実装済み）*
+* 🔏 **書き込みゲートの監査チェーンは署名され、ディスクに保持できます：** 書き込みを有効にすると、すべてのレコードに HMAC-SHA256 署名が付き（`GATEWAY_WRITE_AUDIT_KEY_FILE`）、`GET /command/write-audit` はチェーンの先頭を返すので切り取られた末尾に気づけます。`GATEWAY_WRITE_AUDIT_FILE` は再起動をまたいでレコードを保持し、レコードを書けなくなると書き込みは一切受け付けられません。実際の PLC に書き込む実行部はまだなく、それが守るべき契約は `docs/API.md` にあります。
 
 **正直な現状確認 —— 今日実際に動くもの：** `POST /command { protocol, operation, target }` は実際に動作します——操作はそのプロトコルのアローリストに明示的に登録されている必要があり（そうでなければ `403`——v0 では読み取り/publish 系の操作のみを許可し、稼働中の PLC の状態を変更しうる操作は許可されていません）、上限を超える数のコマンドが同時に実行されることはなく（超えると `429`）、時間内に完了しなかったコマンドは無期限に保留されるのではなくタイムアウトとして報告されます（`504`）。デフォルトの実行経路は本プロジェクト自身の実際の到達可能性プローブを再利用しています——3 つの子サービスのいずれもまだ実際のコマンド API を公開していないため、実際のプロトコルレベルの書き込みにはまだ至っていないことを正直に示しています。実際に出荷済みの内容は `CHANGELOG.md` を参照してください。
 
@@ -159,7 +160,7 @@ npm start
 
 ## 🧪 テスト
 
-`npm test` で自動テスト 146 件を実行します。 ハードウェアも、このマシンの外にあるものも必要ありません。
+`npm test` で自動テスト 154 件を実行します。 ハードウェアも、このマシンの外にあるものも必要ありません。
 
 CI は `HYDRA_UMC_CI=1 python tools/ci_validate.py` を実行し、マニフェスト、文書、8 つの README、図を検査します。
 
@@ -231,6 +232,8 @@ HYDRA-UMC-GATEWAY-INDUSTRIAL/
 ├── src/                       ソースコード
 │   ├── probes.ts              各子サービスに対する実際の TCP/HTTP 到達可能性チェック
 │   ├── command.ts             実際の CommandDispatcher：アローリスト + バックプレッシャー + タイムアウト
+│   ├── writeGate.ts           コントローラーへの書き込みゲート
+│   ├── writeAuditStore.ts     監査チェーンのディスク保存
 │   ├── version.ts             package.json から読み取る実際のパッケージバージョン(実行時)
 │   ├── server.ts              Express アプリ：GET /status、POST /command
 │   ├── audit.ts               すべての POST /command の不変な監査証跡 (誰が何を要求し、何が起きたか)
