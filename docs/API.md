@@ -223,3 +223,33 @@ The adapter for the URTC tool heads is meant to be a connector of this gateway (
 Modbus and S7 follow the same gate once their executors exist: a rule names the register or the data block address as the `target`, with the same type and range.
 
 No executor that writes to a real PLC exists: with the default executor a committed write ends as `probe_only` (`501`) and nothing was written. `GATEWAY_WRITE_SIMULATED=1` sends the writes to an in-memory controller to try the whole path without a PLC.
+
+---
+
+## Modbus TCP (`protocol: "Modbus"`)
+
+Off unless `GATEWAY_MODBUS_MAP_FILE` points at a map. The target of a command is `modbus:<device>/<register>`, with the names of the map.
+
+```json
+{"devices": [{
+  "id": "plc1", "host": "10.0.0.20", "port": 502, "unitId": 1, "timeoutMs": 1500,
+  "registers": [
+    {"name": "temp", "table": "input", "address": 10, "type": "int16", "scale": 0.1},
+    {"name": "setpoint", "table": "holding", "address": 20, "type": "uint16", "scale": 0.1, "writable": true, "min": 0, "max": 90},
+    {"name": "fan", "table": "coil", "address": 5, "writable": true}
+  ]}]}
+```
+
+`table` is `holding`, `input`, `coil` or `discrete`; `type` is `uint16`, `int16`, `uint32`, `int32`, `float32` or `bool` (the bit tables are `bool`); `scale` and `offset` give the engineering value `raw * scale + offset`; `wordOrder` (`big` or `little`) is the order of the two words of a 32 bit value; `tolerance` is how far the value read back may be from the one written (default half a step of the scale). `unitId` 0 (the broadcast) is refused.
+
+- `operation: "read"` answers `{"status": "accepted", "result": <value>}`. The caller needs the scope `modbus:read`.
+- `operation: "write"` prepares a write and `operation: "write_commit"` with the `confirmId` executes it. Both need `GATEWAY_WRITES=1`, the `admin` role, and the scopes `modbus:write` and `modbus:write_commit`; the gate checks the rule derived from the map (the writable registers, each with its `min` and `max`), the type of the value and the safety state of the cell. After the write the register is read back: `{"status": "accepted", "result": <value read back>}` when it matches, `{"status": "write_unverified", "reason": ..., "readBack": ...}` (HTTP 502) when it does not.
+- A target that is not in the map, a device that does not answer within its `timeoutMs` and a device that answers with a Modbus exception are `downstream_unreachable` (HTTP 502) with the reason.
+
+## `GET /command/journal`
+
+Only with `GATEWAY_JOURNAL=1` or `GATEWAY_JOURNAL_URL`, behind the same login as `POST /command`. `?limit=N` (up to 200). Answers `{"entries": [...], "toLake", "sent", "dropped", "failed", "queued", "kept"}`; each entry has `atMs`, `protocol`, `operation`, `target`, `caller`, `outcome`, and `latencyMs` and `value` when known.
+
+## `GET /status/stream`
+
+Only with `GATEWAY_STATUS_STREAM=1`. `text/event-stream`: an event `status` with the body of `GET /status` when the stream opens, an event `change` with the same body whenever a service changed reachability, and a comment line every 15 seconds. Like `/status` it has no authentication of its own.

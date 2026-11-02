@@ -38,10 +38,10 @@
 
 import type { WriteGate } from "./writeGate.js";
 
-export type Protocol = "OPC-UA" | "MQTT" | "MTConnect";
+export type Protocol = "OPC-UA" | "MQTT" | "MTConnect" | "Modbus";
 
 /** The closed list of protocols a command may name; anything else is a malformed request, never a lookup key. */
-export const PROTOCOLS: readonly Protocol[] = ["OPC-UA", "MQTT", "MTConnect"];
+export const PROTOCOLS: readonly Protocol[] = ["OPC-UA", "MQTT", "MTConnect", "Modbus"];
 
 export function isProtocol(value: unknown): value is Protocol {
   return typeof value === "string" && (PROTOCOLS as readonly string[]).includes(value);
@@ -61,10 +61,20 @@ export interface CommandRequest {
   confirmId?: string;
   /** Who asks (the `sub` of the token), so a confirmation can only be used by the one it was handed to. */
   caller?: string | null;
+  /** The roles the caller holds (the `role`/`roles` of the token), lower case. A write to a Modbus controller needs "admin". */
+  roles?: readonly string[];
 }
 
+/** The protocols whose "write" goes through the write gate. */
+export const GATED_WRITE_PROTOCOLS: readonly Protocol[] = ["OPC-UA", "Modbus"];
+
+/** The role a caller must hold to write to a Modbus controller. */
+export const MODBUS_WRITE_ROLE = "admin";
+
 export type CommandOutcome =
-  | { status: "accepted"; latencyMs: number }
+  | { status: "accepted"; latencyMs: number; /** What the executor returned (the value of a read, or the value read back after a write). */ result?: unknown }
+  // The write was sent, but the value read back from the device is not the one written (or could not be read): the order is NOT done, and the caller must not believe it was.
+  | { status: "write_unverified"; reason: string; readBack?: unknown; latencyMs: number }
   // The target answered a reachability probe, but this gateway has no executor that performs the operation: nothing was executed, and the caller must not believe it was.
   | { status: "probe_only"; latencyMs: number; reason: string }
   | { status: "rejected_unauthorized"; reason: string }
@@ -76,7 +86,16 @@ export type CommandOutcome =
   | { status: "downstream_unreachable"; reason: string }
   | { status: "executor_error"; reason: string };
 
-export type CommandExecutor = (req: CommandRequest) => Promise<{ ok: boolean; detail?: string; /** false when the executor only probed the target and performed nothing (default: true) */ executed?: boolean }>;
+export type CommandExecutor = (req: CommandRequest) => Promise<{
+  ok: boolean;
+  detail?: string;
+  /** false when the executor only probed the target and performed nothing (default: true) */
+  executed?: boolean;
+  /** The value of a read, or the value read back after a write. */
+  data?: unknown;
+  /** For a write: false when the value read back is not the one written. */
+  verified?: boolean;
+}>;
 
 // The topics an MQTT "publish" may target when nothing else is configured: a namespace of the gateway's own. The bridges' own command topics (hydra/bridges/...) are never
 // reachable through the gateway, whatever is configured, because a free publish there would be an unauthenticated order to a machine.
@@ -114,6 +133,8 @@ export const DEFAULT_ALLOWLIST: Readonly<Record<Protocol, ReadonlySet<string>>> 
   "OPC-UA": new Set(["read"]),
   MQTT: new Set(["publish"]),
   MTConnect: new Set(["read"]),
+  // Nothing of Modbus is listed until a map of devices exists (GATEWAY_MODBUS_MAP_FILE): the server then adds "read".
+  Modbus: new Set(),
 };
 
 export interface DispatcherOptions {
@@ -179,7 +200,7 @@ export class CommandDispatcher {
 
   isAuthorized(protocol: Protocol, operation: string): boolean {
     // The two steps of a write exist only for OPC-UA and only while the gate is on; the allowlist never lists them.
-    if (protocol === "OPC-UA" && (operation === "write" || operation === "write_commit")) return this.writeGate?.enabled === true;
+    if (GATED_WRITE_PROTOCOLS.includes(protocol) && (operation === "write" || operation === "write_commit")) return this.writeGate?.enabled === true;
     // Own properties only: "constructor" or "__proto__" must never resolve to an inherited object.
     if (!Object.hasOwn(this.allowlist, protocol)) return false;
     return this.allowlist[protocol]?.has(operation) ?? false;
@@ -200,8 +221,14 @@ export class CommandDispatcher {
   // command must never appear to have merely been "too busy" to run.
   async dispatch(req: CommandRequest): Promise<CommandOutcome> {
     const gate = this.writeGate;
-    if (gate && req.protocol === "OPC-UA" && this.isAuthorized(req.protocol, req.operation)) {
+    if (gate && GATED_WRITE_PROTOCOLS.includes(req.protocol) && this.isAuthorized(req.protocol, req.operation)) {
       const caller = req.caller ?? null;
+      // Writing to a Modbus controller is an administrator's act: the role is checked before the gate looks at the value, and the refusal is in the audit chain.
+      if (req.protocol === "Modbus" && !(req.roles ?? []).includes(MODBUS_WRITE_ROLE)) {
+        const reason = `writing to a Modbus controller needs the ${MODBUS_WRITE_ROLE} role`;
+        gate.deny(caller, req.target, reason);
+        return { status: "rejected_write", reason };
+      }
       if (req.operation === "write") {
         const decision = await gate.prepare(caller, req.target, req.value);
         return decision.ok ? { status: "write_prepared", confirmId: decision.confirmId, expiresAtMs: decision.expiresAtMs } : { status: "rejected_write", reason: decision.reason };
@@ -210,7 +237,7 @@ export class CommandDispatcher {
         const decision = await gate.commit(caller, req.confirmId);
         if (!decision.ok) return { status: "rejected_write", reason: decision.reason };
         // the released write goes through the same capacity and timeout rules as any other command
-        const outcome = await this.run({ protocol: "OPC-UA", operation: "write", target: decision.target, value: decision.value, timeoutMs: req.timeoutMs, caller });
+        const outcome = await this.run({ protocol: req.protocol, operation: "write", target: decision.target, value: decision.value, timeoutMs: req.timeoutMs, caller, roles: req.roles });
         gate.recordExecution(caller, decision.target, outcome.status);
         return outcome;
       }
@@ -248,7 +275,7 @@ export class CommandDispatcher {
     const execution = Promise.resolve().then(() => this.executor(req));
     try {
       const timeoutMs = req.timeoutMs ?? this.defaultTimeoutMs;
-      let result: { ok: boolean; detail?: string; executed?: boolean } | typeof TIMEOUT_MARKER;
+      let result: Awaited<ReturnType<CommandExecutor>> | typeof TIMEOUT_MARKER;
       try {
         result = await withTimeout(execution, timeoutMs);
       } catch (err) {
@@ -281,7 +308,10 @@ export class CommandDispatcher {
       if (result.executed === false) {
         return { status: "probe_only", latencyMs: Date.now() - startedAt, reason: result.detail ?? `${req.protocol} target "${req.target}" is reachable, but this gateway has no executor that performs the operation: nothing was executed` };
       }
-      return { status: "accepted", latencyMs: Date.now() - startedAt };
+      if (req.operation === "write" && result.verified === false) {
+        return { status: "write_unverified", reason: result.detail ?? "the value read back is not the one written", ...(result.data !== undefined ? { readBack: result.data } : {}), latencyMs: Date.now() - startedAt };
+      }
+      return { status: "accepted", latencyMs: Date.now() - startedAt, ...(result.data !== undefined ? { result: result.data } : {}) };
     } finally {
       if (!releaseAfterExecutorSettles) {
         this.inFlight--;

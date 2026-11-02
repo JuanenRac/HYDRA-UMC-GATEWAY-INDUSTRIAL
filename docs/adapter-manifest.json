@@ -1,0 +1,46 @@
+{
+  "adapterId": "industrial-modbus",
+  "schemaVersion": "1.0",
+  "protocol": "modbus-tcp",
+  "targetKinds": ["plc", "sensor", "drive"],
+  "endpointSchema": {
+    "type": "object",
+    "properties": {
+      "host": { "type": "string" },
+      "port": { "type": "integer" },
+      "unitId": { "type": "integer" }
+    },
+    "required": ["host", "port"]
+  },
+  "authenticationRef": "env:GATEWAY_JWT_SECRET",
+  "capabilities": [
+    {
+      "name": "readRegister",
+      "mode": "read",
+      "risk": "low"
+    },
+    {
+      "name": "writeRegister",
+      "mode": "write",
+      "risk": "high",
+      "requiredPermission": "modbus.write",
+      "requiredCellState": "operational",
+      "requiresHumanConfirmation": true,
+      "timeoutMs": 3000
+    }
+  ],
+  "requiredSafetyGates": ["cell.estop.clear"],
+  "healthCheck": { "type": "tcp-connect" },
+  "timeoutMs": 3000,
+  "idempotency": "idempotent",
+  "evidenceSchema": {
+    "type": "object",
+    "properties": {
+      "target": { "type": "string" },
+      "value": {},
+      "readBack": {}
+    }
+  },
+  "sdkCompatibility": ">=0.1.0",
+  "ownerProject": "HYDRA-UMC-GATEWAY-INDUSTRIAL"
+}

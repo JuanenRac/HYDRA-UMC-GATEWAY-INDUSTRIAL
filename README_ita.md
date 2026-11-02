@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-154%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-177%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.8-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,7 +36,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | Versione | `0.1.8` |
 | Maturità | Funzionale |
-| Test | 154 (`npm test`) |
+| Test | 177 (`npm test`) |
 | Tecnologia | Node.js / Express / real TCP/HTTP reachability probes |
 | Destinazione | Il Raspberry Pi CM5 di una cella HYDRA-UMC |
 | Su hardware reale | Non ancora: per questa versione non risulta alcuna esecuzione su hardware reale |
@@ -52,7 +52,7 @@ Ogni riga è una parte di questo repository e il semaforo dice a che punto è og
 | Area | Stato | Cosa significa qui |
 |---|---|---|
 | Software | 🟡 | Funziona per il suo scopo principale; la verifica di onestà qui sopra elenca ciò che manca ancora |
-| Test | 🟢 | 154 test automatici, eseguiti a ogni modifica |
+| Test | 🟢 | 177 test automatici, eseguiti a ogni modifica |
 | Hardware reale | 🔴 | Non ancora: per questa versione non risulta alcuna esecuzione su hardware reale |
 | Interfaccia e protocolli | 🟡 | Le rotte o i messaggi offerti sono documentati e provati con un client; non tutti i client li hanno ancora usati |
 | Integrazione | 🟠 | I suoi messaggi e le sue rotte sono verificati rispetto ai contratti condivisi dell'SDK; non ha ancora funzionato insieme all'apparecchiatura reale |
@@ -146,6 +146,8 @@ raggiungere.
 
 La porta di ascolto viene letta prima da `HYDRA_UMC_GATEWAY_PORT`. Il `PORT` condiviso vale ancora come ultima risorsa e stampa un avviso, così che un file di ambiente condiviso da più servizi non possa spostare il gateway sulla porta di un altro servizio per errore; il controllo di salute del container segue lo stesso ordine.
 
+Un adattatore Modbus TCP, disattivato finché `GATEWAY_MODBUS_MAP_FILE` non indica una mappa dichiarativa di dispositivi e registri: `POST /command` con il protocollo `Modbus` legge un registro per nome (`modbus:<dispositivo>/<registro>`), scalato in unità ingegneristiche. La scrittura è distinta e più rigida: richiede `GATEWAY_WRITES=1`, un registro che la mappa dichiara scrivibile con un proprio minimo e massimo, i due passi e il controllo dello stato della cella della porta di scrittura, il ruolo `admin` nel token, e il valore viene riletto dal dispositivo; un valore che non torna è segnalato come `write_unverified`, mai come accettato. `GATEWAY_JOURNAL_URL` invia ogni ordine a HYDRA-UMC-DATALAKE come cronologia interrogabile (`GET /command/journal` elenca i più recenti), e `GATEWAY_STATUS_STREAM=1` serve `GET /status/stream`, che spinge un cambio di raggiungibilità come evento Server-Sent invece di far fare polling ai client.
+
 ## 🚀 Avvio rapido
 
 Richiede Node.js 20 o successivo con npm.
@@ -159,7 +161,7 @@ npm start
 
 ## 🧪 Test
 
-154 test automatici si eseguono con `npm test`. Non richiedono hardware né nulla al di fuori di questa macchina.
+177 test automatici si eseguono con `npm test`. Non richiedono hardware né nulla al di fuori di questa macchina.
 
 La CI esegue `HYDRA_UMC_CI=1 python tools/ci_validate.py`, che controlla il manifesto, i documenti, gli otto README e le immagini.
 

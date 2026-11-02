@@ -114,6 +114,8 @@ declare module "express-serve-static-core" {
     commandCaller?: string;
     /** What the caller may do, as `<protocol>:<operation>` scopes. Undefined only when the gateway runs without caller authentication (an open lab gateway). */
     commandScopes?: readonly string[];
+    /** The roles of the caller (`role` or `roles` of the token, or GATEWAY_CERT_ROLES for a certificate), lower case. Empty without authentication. */
+    commandRoles?: readonly string[];
   }
 }
 
@@ -125,6 +127,19 @@ export function scopesRequired(env: NodeJS.ProcessEnv = process.env): boolean {
 /** The scopes a verified client certificate gets (GATEWAY_CERT_SCOPES, comma or space separated). Empty means none: a certificate then cannot run anything while scopes are required. */
 export function resolveCertScopes(env: NodeJS.ProcessEnv = process.env): readonly string[] {
   return (env.GATEWAY_CERT_SCOPES ?? "").split(/[\s,]+/).map((item) => item.trim().toLowerCase()).filter(Boolean);
+}
+
+/** The roles a verified client certificate gets (GATEWAY_CERT_ROLES, comma or space separated). None by default. */
+export function resolveCertRoles(env: NodeJS.ProcessEnv = process.env): readonly string[] {
+  return (env.GATEWAY_CERT_ROLES ?? "").split(/[\s,]+/).map((item) => item.trim().toLowerCase()).filter(Boolean);
+}
+
+/** The roles of a token payload: a `role` string, or a `roles` array of strings. Anything else yields none. */
+export function rolesFromPayload(payload: Record<string, unknown>): readonly string[] {
+  const out: string[] = [];
+  if (typeof payload.role === "string") out.push(payload.role);
+  if (Array.isArray(payload.roles)) out.push(...payload.roles.filter((item): item is string => typeof item === "string"));
+  return out.map((item) => item.trim().toLowerCase()).filter(Boolean);
 }
 
 /** The scopes of a token payload: the standard space-separated `scope` string, or a `scopes`/`scp` array of strings. Anything else yields none. */
@@ -166,6 +181,7 @@ export function requireCommandAuth(config: CommandAuthConfig | null, certificate
       if (commonName !== null && certificateCommonNames.includes(commonName)) {
         req.commandCaller = `cert:${commonName}`;
         req.commandScopes = resolveCertScopes();
+        req.commandRoles = resolveCertRoles();
         next();
         return;
       }
@@ -197,6 +213,7 @@ export function requireCommandAuth(config: CommandAuthConfig | null, certificate
       if (typeof payload.sub !== "string" || payload.sub.trim() === "") throw new Error("token must carry a sub claim");
       req.commandCaller = payload.sub;
       req.commandScopes = scopesFromPayload(payload as Record<string, unknown>);
+      req.commandRoles = rolesFromPayload(payload as Record<string, unknown>);
       next();
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);

@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-154%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-177%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.8-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,7 +36,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | バージョン | `0.1.8` |
 | 成熟度 | 機能する |
-| テスト | 154 (`npm test`) |
+| テスト | 177 (`npm test`) |
 | 技術 | Node.js / Express / real TCP/HTTP reachability probes |
 | 対象 | HYDRA-UMC セルの Raspberry Pi CM5 |
 | 実機での確認 | まだです：このバージョンについて実機での動作記録はありません |
@@ -52,7 +52,7 @@ GPL-3.0-or-later - see LICENSE
 | 領域 | 状態 | ここでの意味 |
 |---|---|---|
 | ソフトウェア | 🟡 | 主な目的では動作します。足りない点は上の正直さの確認に書かれています |
-| テスト | 🟢 | 自動テスト 154 件。変更のたびに実行されます |
+| テスト | 🟢 | 自動テスト 177 件。変更のたびに実行されます |
 | 実機 | 🔴 | まだです：このバージョンについて実機での動作記録はありません |
 | インターフェースとプロトコル | 🟡 | 提供するルートやメッセージは文書化され、クライアントで試験済みです。すべてのクライアントがまだ使ったわけではありません |
 | 連携 | 🟠 | メッセージとルートは SDK の共通契約に照らして検証されていますが、実機と一緒に動かしたことはありません |
@@ -154,6 +154,8 @@ OPC-UA は `4840`、MQTT は `1883`、MTConnect は `5000` です。
 
 待ち受けポートは、まず `HYDRA_UMC_GATEWAY_PORT` から読み取ります。共有の `PORT` は最後の手段として引き続き使え、警告を表示します。そのため、複数のサービスで共有する環境ファイルがゲートウェイを他のサービスのポートへうっかり移すことはありません。コンテナのヘルスチェックも同じ順序に従います。
 
+Modbus TCP アダプターは、`GATEWAY_MODBUS_MAP_FILE` が機器とレジスターの宣言的なマップを指すまでオフです。プロトコル `Modbus` の `POST /command` は、名前（`modbus:<機器>/<レジスター>`）でレジスターを読み、工学単位に換算します。書き込みは別扱いでより厳格です。`GATEWAY_WRITES=1`、マップが固有の最小値・最大値付きで書き込み可能と宣言したレジスター、書き込みゲートの 2 段階とセル状態の確認、トークンの `admin` ロールが必要で、書いた値は機器から読み戻されます。戻ってこない値は受理ではなく `write_unverified` と報告されます。`GATEWAY_JOURNAL_URL` は各命令を照会可能なタイムラインとして HYDRA-UMC-DATALAKE に送り（`GET /command/journal` が最新を一覧）、`GATEWAY_STATUS_STREAM=1` は `GET /status/stream` を提供して、到達性の変化をクライアントのポーリングの代わりに Server-Sent Event で通知します。
+
 ## 🚀 クイックスタート
 
 Node.js 20 以上と npm が必要です。
@@ -167,7 +169,7 @@ npm start
 
 ## 🧪 テスト
 
-`npm test` で自動テスト 154 件を実行します。 ハードウェアも、このマシンの外にあるものも必要ありません。
+`npm test` で自動テスト 177 件を実行します。 ハードウェアも、このマシンの外にあるものも必要ありません。
 
 CI は `HYDRA_UMC_CI=1 python tools/ci_validate.py` を実行し、マニフェスト、文書、8 つの README、図を検査します。
 

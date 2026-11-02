@@ -16,6 +16,9 @@ const OPC_UA_NODE_ID = /^(?:ns=\d{1,5};)?(?:i=\d{1,10}|s=[^\u0000-\u001F\u007F]{
 // What an MTConnect agent serves: /probe, /current, /sample and /assets, optionally under a device name, and a query of plain key=value pairs.
 const MTCONNECT_PATH = /^\/(?:[A-Za-z0-9_.:-]{1,128}\/)?(?:probe|current|sample|assets)(?:\?[A-Za-z0-9_.:=&,;%+-]{0,256})?$/;
 
+// A register of the declarative Modbus map: the device and the register, by the names the map gives them.
+const MODBUS_TARGET = /^modbus:[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+
 /** Why `target` is not a valid target for `protocol`, or null when it is. MQTT topics have their own, stricter check in command.ts. */
 export function targetFormatProblem(protocol: Protocol, target: string): string | null {
   switch (protocol) {
@@ -23,6 +26,8 @@ export function targetFormatProblem(protocol: Protocol, target: string): string 
       return OPC_UA_NODE_ID.test(target) ? null : 'an OPC-UA target is a NodeId such as "ns=1;s=HydraNode_1.SwarmOnline" or "i=2253"';
     case "MTConnect":
       return !target.includes("..") && MTCONNECT_PATH.test(target) ? null : 'an MTConnect target is a path of the agent such as "/current", "/sample?from=10&count=5" or "/HydraNode_1/probe"';
+    case "Modbus":
+      return MODBUS_TARGET.test(target) ? null : 'a Modbus target is "modbus:<device>/<register>" with the names of the map, such as "modbus:plc1/setpoint"';
     case "MQTT":
       return null;
   }

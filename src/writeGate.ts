@@ -273,6 +273,11 @@ export class WriteGate {
     return { ok: false, reason };
   }
 
+  /** A refusal that was decided outside the gate (the role of the caller): it is recorded in the same chain. */
+  deny(caller: string | null, target: string, reason: string): void {
+    this.record("write_refused", caller, target, reason);
+  }
+
   private async cellProblem(): Promise<string | null> {
     if (!this.cellState) return "no source of the cell state is configured: a write is not made blind";
     let reading: CellStateReading | null;

@@ -33,6 +33,7 @@ import { strictTargetsEnabled, targetFormatProblem } from "./targets.js";
 import { readPackageVersion } from "./version.js";
 import {
   CommandDispatcher,
+  DEFAULT_ALLOWLIST,
   DEFAULT_MQTT_PUBLISH_TOPICS,
   MAX_COMMAND_TIMEOUT_MS,
   isProtocol,
@@ -54,7 +55,9 @@ import {
 import { CommandRateLimiter, requireCommandRateLimit, resolveRateLimitConfig, describeRateLimitMode } from "./rateLimit.js";
 import { FileCommandAuditLogger, recordCommandAttempt, resolveAuditLogPath, type CommandAuditLogger } from "./audit.js";
 import { resolveServicePort } from "./portConfig.js";
-import { WriteGate, chainHead, createSimulatedController, parseWriteRules, writesEnabled, type CellStateProvider } from "./writeGate.js";
+import { WriteGate, chainHead, createSimulatedController, parseWriteRules, writesEnabled, type CellStateProvider, type WriteRule } from "./writeGate.js";
+import { createModbusExecutor, modbusMapFile, modbusWriteRules, parseModbusMap, probeModbusDevice, type ModbusMap } from "./modbus.js";
+import { CommandJournal, journalFromEnv } from "./journal.js";
 import { fileAuditSink, loadAuditFile, readAuditKey } from "./writeAuditStore.js";
 
 // 8000 is free of the three protocol-specific defaults this Gateway
@@ -96,7 +99,15 @@ function buildChildren(): ChildSpec[] {
   const mqttPort = Number(process.env.MQTT_PORT) || 1883;
   const mtconnectUrl = process.env.MTCONNECT_URL || "http://mtconnect-adapter:5000/probe";
 
+  const modbusChildren: ChildSpec[] = [];
+  const modbus = loadModbusMap();
+  if (modbus) {
+    for (const device of modbus.devices.values()) {
+      modbusChildren.push({ name: `modbus:${device.id}`, protocol: "Modbus", endpoint: `modbus-tcp://${device.host}:${device.port}`, check: () => probeModbusDevice(device) });
+    }
+  }
   return [
+    ...modbusChildren,
     {
       name: "HYDRA-UMC-OPCUA-SERVER",
       protocol: "OPC-UA",
@@ -173,6 +184,8 @@ export interface BuildAppOptions {
   statusCacheMs?: number;
   // Overridable so tests can read the counters; by default one registry per app, served at GET /metrics only with GATEWAY_METRICS=1.
   metrics?: MetricsRegistry;
+  // Overridable so tests can read the journal; by default it comes from the environment and exists only when GATEWAY_JOURNAL_URL or GATEWAY_JOURNAL=1 is set.
+  journal?: CommandJournal;
 }
 
 /** Headers every answer carries: it is a JSON API, never a page, so nothing it returns may be sniffed, framed, cached or given a script. */
@@ -198,13 +211,16 @@ export function buildApp(options: BuildAppOptions = {}) {
   // One dispatcher per app instance (not per request) - backpressure
   // only means anything if concurrent requests share the same in-flight
   // counter.
-  const writeGate = options.commandDispatcher ? undefined : buildWriteGate();
+  const modbusMap = options.commandDispatcher ? undefined : loadModbusMap();
+  const writeGate = options.commandDispatcher ? undefined : buildWriteGate(process.env, modbusMap ? modbusWriteRules(modbusMap) : []);
+  const journal: CommandJournal | undefined = options.journal ?? (options.commandDispatcher ? undefined : journalFromEnv(process.env, (file) => fs.readFileSync(file, "utf8")));
   const dispatcher =
     options.commandDispatcher ??
     new CommandDispatcher({
-      executor: writeGate && simulatedWritesEnabled() ? createSimulatedController().executor : buildCommandExecutor(buildChildren()),
+      executor: buildRoutedExecutor(writeGate && simulatedWritesEnabled() ? createSimulatedController().executor : buildCommandExecutor(buildChildren()), modbusMap),
       mqttPublishTopics: resolveMqttPublishTopics(),
       writeGate,
+      ...(modbusMap ? { allowlist: { ...DEFAULT_ALLOWLIST, Modbus: new Set(["read"]) } } : {}),
     });
   const commandAuthConfig = resolveCommandAuthConfig();
   const commandAuthMiddleware = commandAuthConfig || certCommonNames.length > 0 ? [requireCommandAuth(commandAuthConfig, certCommonNames)] : [];
@@ -270,6 +286,79 @@ export function buildApp(options: BuildAppOptions = {}) {
     }
   });
 
+  // GET /status/stream (Server-Sent Events): pushes a change of reachability to STUDIO and SUITE instead of making them poll. Off unless
+  // GATEWAY_STATUS_STREAM=1. One ticker serves every client (a round of probes every GATEWAY_STATUS_STREAM_MS, default 2000, through the same
+  // cache and single flight as GET /status), at most GATEWAY_STATUS_STREAM_MAX clients (default 8, then 503). A client gets the whole status
+  // first (event "status"), then an event "change" only when a child changed reachability, and a comment line every 15 s so a proxy keeps the
+  // connection. Like /status it has no authentication of its own: keep the port on a trusted network.
+  const streamClients = new Set<Response>();
+  let streamTimer: ReturnType<typeof setInterval> | undefined;
+  let lastStreamSignature = "";
+  const statusSignature = (body: StatusBody): string => body.children.map((c) => `${c.name}=${c.reachable ? 1 : 0}`).join("|");
+  const currentStatus = (): Promise<StatusBody> => {
+    const now = Date.now();
+    if (!statusCache || now - statusCache.at >= statusCacheMs) {
+      const pending = probeChildren();
+      statusCache = { at: now, pending };
+      pending.catch(() => {
+        if (statusCache?.pending === pending) statusCache = null;
+      });
+    }
+    return statusCache.pending;
+  };
+  const sendEvent = (res: Response, event: string, data: unknown): void => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+  const stopStreamTicker = (): void => {
+    if (streamTimer && streamClients.size === 0) {
+      clearInterval(streamTimer);
+      streamTimer = undefined;
+    }
+  };
+  if (statusStreamEnabled()) {
+    const everyMs = statusStreamIntervalMs();
+    const maxClients = statusStreamMaxClients();
+    app.get("/status/stream", async (req, res) => {
+      if (streamClients.size >= maxClients) {
+        res.status(503).json({ error: `at most ${maxClients} status streams are open at once` });
+        return;
+      }
+      res.status(200).set({ "Content-Type": "text/event-stream", "Cache-Control": "no-store", Connection: "keep-alive", "X-Accel-Buffering": "no" });
+      res.flushHeaders();
+      streamClients.add(res);
+      req.on("close", () => {
+        streamClients.delete(res);
+        stopStreamTicker();
+      });
+      try {
+        const body = await currentStatus();
+        if (streamClients.size === 1 || lastStreamSignature === "") lastStreamSignature = statusSignature(body);
+        sendEvent(res, "status", body);
+      } catch {
+        sendEvent(res, "error", { error: "the status could not be read" });
+      }
+      if (!streamTimer && streamClients.size > 0) {
+        let ticks = 0;
+        streamTimer = setInterval(async () => {
+          ticks += 1;
+          try {
+            const body = await currentStatus();
+            const signature = statusSignature(body);
+            if (signature !== lastStreamSignature) {
+              lastStreamSignature = signature;
+              for (const client of streamClients) sendEvent(client, "change", body);
+            } else if (ticks % Math.max(1, Math.round(15_000 / everyMs)) === 0) {
+              for (const client of streamClients) client.write(": keep-alive\n\n");
+            }
+          } catch {
+            // a round that failed is not a change: the next one decides
+          }
+        }, everyMs);
+        streamTimer.unref?.();
+      }
+    });
+  }
+
   if (metricsEnabled()) {
     app.get("/metrics", (_req, res) => {
       res.type("text/plain; version=0.0.4; charset=utf-8").send(metrics.render());
@@ -279,6 +368,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   const OUTCOME_HTTP_STATUS: Record<string, number> = {
     accepted: 200,
     write_prepared: 202,
+    write_unverified: 502,
     rejected_write: 403,
     probe_only: 501,
     rejected_unauthorized: 403,
@@ -316,7 +406,7 @@ export function buildApp(options: BuildAppOptions = {}) {
       }
       if (!isProtocol(protocol)) {
         res.locals.auditOutcome = "invalid_request";
-        res.status(400).json({ error: "protocol must be one of OPC-UA, MQTT, MTConnect" });
+        res.status(400).json({ error: "protocol must be one of OPC-UA, MQTT, MTConnect, Modbus" });
         return;
       }
       if (!enforceCommandScope(req, res, protocol, operation)) return;
@@ -353,12 +443,32 @@ export function buildApp(options: BuildAppOptions = {}) {
         value,
         confirmId,
         caller: req.commandCaller ?? null,
+        roles: req.commandRoles ?? [],
+      });
+      const journaled = journalValue(outcome, value);
+      journal?.record({
+        atMs: Date.now(),
+        protocol,
+        operation,
+        target,
+        caller: req.commandCaller ?? null,
+        outcome: outcome.status,
+        ...("latencyMs" in outcome && typeof outcome.latencyMs === "number" ? { latencyMs: outcome.latencyMs } : {}),
+        ...(journaled !== undefined ? { value: journaled } : {}),
       });
       res.locals.auditOutcome = outcome.status;
       if ("reason" in outcome) res.locals.auditReason = outcome.reason;
       res.status(OUTCOME_HTTP_STATUS[outcome.status] ?? 500).json(outcome);
     },
   );
+
+  // The change journal: the newest orders and how each ended, behind the same authentication as POST /command. Only while the journal is on.
+  if (journal) {
+    app.get("/command/journal", ...commandAuthMiddleware, (req, res) => {
+      const limit = Number(req.query.limit);
+      res.json({ entries: journal.recent(Number.isInteger(limit) && limit > 0 ? Math.min(limit, 200) : 100), ...journal.stats() });
+    });
+  }
 
   // The tamper-evident record of what the write gate decided: behind the same authentication as POST /command, and only when writes are on.
   const activeGate = writeGate ?? dispatcher.gate;
@@ -401,6 +511,47 @@ function resolveMqttPublishTopics(env: NodeJS.ProcessEnv = process.env): readonl
   return configured.length > 0 ? configured : DEFAULT_MQTT_PUBLISH_TOPICS;
 }
 
+/** The Modbus map from GATEWAY_MODBUS_MAP_FILE, or undefined while the adapter is off. An invalid map stops the start. */
+function loadModbusMap(env: NodeJS.ProcessEnv = process.env): ModbusMap | undefined {
+  const file = modbusMapFile(env);
+  if (!file) return undefined;
+  // The map is parsed again only when its text changed: GET /status builds the children on every round.
+  const text = fs.readFileSync(file, "utf8");
+  if (!cachedModbusMap || cachedModbusMap.text !== text) cachedModbusMap = { text, map: parseModbusMap(text) };
+  return cachedModbusMap.map;
+}
+let cachedModbusMap: { text: string; map: ModbusMap } | undefined;
+
+/** Modbus orders go to the Modbus executor; everything else to the executor the gateway already had. */
+function buildRoutedExecutor(other: CommandExecutor, modbus: ModbusMap | undefined): CommandExecutor {
+  if (!modbus) return other;
+  const modbusExecutor = createModbusExecutor(modbus);
+  return (req) => (req.protocol === "Modbus" ? modbusExecutor(req) : other(req));
+}
+
+/** The value worth journaling for an order: what was read back, or else what was written. */
+function journalValue(outcome: { status: string; result?: unknown }, written: unknown): number | boolean | undefined {
+  const candidate = outcome.result !== undefined ? outcome.result : written;
+  return typeof candidate === "number" || typeof candidate === "boolean" ? candidate : undefined;
+}
+
+/** GATEWAY_STATUS_STREAM: off unless it is exactly "1". */
+function statusStreamEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (env.GATEWAY_STATUS_STREAM ?? "").trim() === "1";
+}
+
+/** How often the stream looks for a change (GATEWAY_STATUS_STREAM_MS, 250 to 60000, default 2000). */
+function statusStreamIntervalMs(env: NodeJS.ProcessEnv = process.env): number {
+  const configured = Number(env.GATEWAY_STATUS_STREAM_MS);
+  return Number.isInteger(configured) && configured >= 250 && configured <= 60_000 ? configured : 2000;
+}
+
+/** How many streams may be open at once (GATEWAY_STATUS_STREAM_MAX, 1 to 64, default 8). */
+function statusStreamMaxClients(env: NodeJS.ProcessEnv = process.env): number {
+  const configured = Number(env.GATEWAY_STATUS_STREAM_MAX);
+  return Number.isInteger(configured) && configured >= 1 && configured <= 64 ? configured : 8;
+}
+
 function simulatedWritesEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.GATEWAY_WRITE_SIMULATED ?? "").trim() === "1";
 }
@@ -410,13 +561,19 @@ function simulatedWritesEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
  * source of the cell state (GATEWAY_CELL_STATE_URL: a GET that answers {"state": "READY", "timestamp_utc": "..."}) are required, and the start fails without them:
  * a gateway that says it writes but would refuse everything, or write blind, is a misconfiguration to stop, not to run.
  */
-function buildWriteGate(env: NodeJS.ProcessEnv = process.env): WriteGate | undefined {
+function buildWriteGate(env: NodeJS.ProcessEnv = process.env, extraRules: readonly WriteRule[] = []): WriteGate | undefined {
   if (!writesEnabled(env)) return undefined;
   const rulesFile = env.GATEWAY_WRITE_RULES_FILE?.trim();
   const stateUrl = env.GATEWAY_CELL_STATE_URL?.trim();
-  if (!rulesFile) throw new Error("GATEWAY_WRITES=1 needs GATEWAY_WRITE_RULES_FILE (the nodes that may be written, one rule each)");
+  // The rules of the Modbus map (its writable registers, each with the range of the map) count as rules; the file is only needed for OPC-UA nodes.
+  if (!rulesFile && extraRules.length === 0) throw new Error("GATEWAY_WRITES=1 needs GATEWAY_WRITE_RULES_FILE (the nodes that may be written, one rule each) or a Modbus map with writable registers");
   if (!stateUrl) throw new Error("GATEWAY_WRITES=1 needs GATEWAY_CELL_STATE_URL (the safety state of the cell): a write is not made blind");
-  const rules = parseWriteRules(fs.readFileSync(rulesFile, "utf8"));
+  const rules = [...(rulesFile ? parseWriteRules(fs.readFileSync(rulesFile, "utf8")) : []), ...extraRules];
+  const seenTargets = new Set<string>();
+  for (const rule of rules) {
+    if (seenTargets.has(rule.target)) throw new Error(`the node ${rule.target} has two write rules (the rules file and the Modbus map)`);
+    seenTargets.add(rule.target);
+  }
   // The signature of the audit chain is on unless it is switched off on purpose: an unsigned chain proves the log is consistent, not who wrote it.
   const signing = (env.GATEWAY_WRITE_AUDIT_SIGNING ?? "on").trim().toLowerCase();
   if (signing !== "on" && signing !== "off") throw new Error("GATEWAY_WRITE_AUDIT_SIGNING must be on or off");
