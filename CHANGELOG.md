@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **Bench test script:** `docs/BENCH_TESTS.md` lists the write-gate checks that need a real Modbus device, all marked not executed.
+
 ## [0.1.9] - Modbus TCP behind a signed write gate, a journal of commands, a status stream and a manifest for the hub
 
 - **A Modbus TCP adapter (off until a map is given).** `GATEWAY_MODBUS_MAP_FILE` names a declarative map of devices and registers (`docs/MODBUS.md`); `POST /command` with the protocol `Modbus` then reads a register by its name (`modbus:<device>/<register>`): holding and input registers, coils and discrete inputs, 16 and 32 bit integers, 32 bit floats and booleans, scaled to engineering units. Only registers of the map can be touched, and each device of the map appears in `GET /status`. The map is validated at the start and an entry that is not usable stops it.
