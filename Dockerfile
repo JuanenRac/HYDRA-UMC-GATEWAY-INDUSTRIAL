@@ -14,7 +14,7 @@
 # repo's root for how this image and its three children are wired
 # together.
 
-FROM node:24-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -23,7 +23,7 @@ COPY scripts ./scripts
 COPY src ./src
 RUN npm run bundle
 
-FROM node:24-alpine AS runtime
+FROM node:25-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 # Inside a container the published port is only reachable if the process listens on every interface.
