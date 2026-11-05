@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-177%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-187%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.9-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,7 +36,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | Versión | `0.1.9` |
 | Madurez | Funcional |
-| Tests | 177 (`npm test`) |
+| Tests | 187 (`npm test`) |
 | Tecnología | Node.js / Express / real TCP/HTTP reachability probes |
 | Destino | La Raspberry Pi CM5 de una celda HYDRA-UMC |
 | En hardware real | Todavía no: no consta ninguna ejecución en hardware real para esta versión |
@@ -52,7 +52,7 @@ Cada línea es una parte de este repositorio y la luz dice hasta dónde llega ho
 | Área | Estado | Qué significa aquí |
 |---|---|---|
 | Software | 🟡 | Funciona para su propósito principal; la comprobación de honestidad de arriba lista lo que aún falta |
-| Pruebas | 🟢 | 177 pruebas automáticas, ejecutadas en cada cambio |
+| Pruebas | 🟢 | 187 pruebas automáticas, ejecutadas en cada cambio |
 | Hardware real | 🔴 | Todavía no: no consta ninguna ejecución en hardware real para esta versión |
 | Interfaz y protocolos | 🟡 | Las rutas o los mensajes que ofrece están documentados y probados con un cliente; aún no los han usado todos los clientes |
 | Integración | 🟠 | Sus mensajes y rutas se comprueban contra los contratos compartidos del SDK; no ha funcionado junto con el equipo real |
@@ -147,6 +147,8 @@ El puerto de escucha se lee primero de `HYDRA_UMC_GATEWAY_PORT`. El `PORT` compa
 
 Un adaptador Modbus TCP, desactivado hasta que `GATEWAY_MODBUS_MAP_FILE` indique un mapa declarativo de dispositivos y registros: `POST /command` con el protocolo `Modbus` lee un registro por su nombre (`modbus:<dispositivo>/<registro>`), escalado a unidades de ingeniería. Escribir es distinto y más estricto: exige `GATEWAY_WRITES=1`, un registro que el mapa declare escribible con su propio mínimo y máximo, los dos pasos y la comprobación del estado de la celda de la puerta de escritura, el rol `admin` en el token, y el valor se lee de vuelta del dispositivo; un valor que no vuelve se notifica como `write_unverified`, nunca como aceptado. `GATEWAY_JOURNAL_URL` envía cada orden a HYDRA-UMC-DATALAKE como una línea de tiempo consultable (`GET /command/journal` lista las últimas), y `GATEWAY_STATUS_STREAM=1` sirve `GET /status/stream`, que empuja un cambio de alcanzabilidad como evento Server-Sent en vez de obligar a sondear.
 
+La identidad común de la familia, desactivada por defecto: `GATEWAY_IDENTITY_KEY_FILE` indica un fichero con la clave de firma de HYDRA-UMC-SERVER (al menos 32 caracteres). Con ella activada nada queda abierto: `GET /health`, `/status`, `/status/stream`, `/metrics` y `POST /command` exigen un token firmado del SERVER (un viewer lee, un operador o administrador manda), la pasarela ya no necesita `GATEWAY_JWT_SECRET` y lo que una identidad puede ejecutar lo da `GATEWAY_IDENTITY_SCOPES` (por defecto solo las operaciones que la lista de permitidas ya concede). La sonda del contenedor (`dist/healthcheck.cjs`) firma un token propio de vida corta.
+
 ## 🚀 Inicio rápido
 
 Requiere Node.js 20 o superior con npm.
@@ -160,7 +162,7 @@ npm start
 
 ## 🧪 Pruebas
 
-177 pruebas automáticas se ejecutan con `npm test`. No necesitan hardware ni nada fuera de esta máquina.
+187 pruebas automáticas se ejecutan con `npm test`. No necesitan hardware ni nada fuera de esta máquina.
 
 El CI ejecuta `HYDRA_UMC_CI=1 python tools/ci_validate.py`, que comprueba el manifiesto, los documentos, los ocho README y las imágenes.
 

@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-177%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-187%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.9-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,7 +36,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | Version | `0.1.9` |
 | Reifegrad | Funktionsfähig |
-| Tests | 177 (`npm test`) |
+| Tests | 187 (`npm test`) |
 | Technik | Node.js / Express / real TCP/HTTP reachability probes |
 | Ziel | Der Raspberry Pi CM5 einer HYDRA-UMC-Zelle |
 | Auf echter Hardware | Noch nicht: für diese Version ist kein Lauf auf echter Hardware vermerkt |
@@ -52,7 +52,7 @@ Jede Zeile ist ein Teil dieses Repositorys, und die Ampel sagt, wie weit er heut
 | Bereich | Stand | Was das hier bedeutet |
 |---|---|---|
 | Software | 🟡 | Funktioniert für seinen Hauptzweck; die Ehrlichkeitsprüfung oben nennt, was noch fehlt |
-| Tests | 🟢 | 177 automatische Tests, bei jeder Änderung ausgeführt |
+| Tests | 🟢 | 187 automatische Tests, bei jeder Änderung ausgeführt |
 | Echte Hardware | 🔴 | Noch nicht: für diese Version ist kein Lauf auf echter Hardware vermerkt |
 | Schnittstelle und Protokolle | 🟡 | Die angebotenen Routen oder Nachrichten sind dokumentiert und mit einem Client getestet; noch nicht jeder Client hat sie benutzt |
 | Integration | 🟠 | Seine Nachrichten und Routen werden gegen die gemeinsamen Verträge des SDK geprüft; es lief noch nicht zusammen mit der echten Ausrüstung |
@@ -148,6 +148,8 @@ Der Listen-Port wird zuerst aus `HYDRA_UMC_GATEWAY_PORT` gelesen. Das gemeinsame
 
 Ein Modbus-TCP-Adapter, aus, bis `GATEWAY_MODBUS_MAP_FILE` eine deklarative Karte von Geräten und Registern nennt: `POST /command` mit dem Protokoll `Modbus` liest ein Register über seinen Namen (`modbus:<Gerät>/<Register>`), skaliert auf technische Einheiten. Schreiben ist getrennt und strenger: Es braucht `GATEWAY_WRITES=1`, ein Register, das die Karte mit eigenem Minimum und Maximum als beschreibbar führt, die zwei Schritte und die Zellenzustandsprüfung des Schreib-Gates, die Rolle `admin` im Token, und der Wert wird vom Gerät zurückgelesen; ein Wert, der nicht zurückkommt, wird als `write_unverified` gemeldet, nie als angenommen. `GATEWAY_JOURNAL_URL` sendet jeden Auftrag als abfragbare Zeitleiste an HYDRA-UMC-DATALAKE (`GET /command/journal` listet die neuesten), und `GATEWAY_STATUS_STREAM=1` liefert `GET /status/stream`, das eine Änderung der Erreichbarkeit als Server-Sent Event meldet, statt Clients pollen zu lassen.
 
+Die gemeinsame Identität der Familie, standardmäßig aus: `GATEWAY_IDENTITY_KEY_FILE` nennt eine Datei mit dem Signierschlüssel von HYDRA-UMC-SERVER (mindestens 32 Zeichen). Ist sie an, ist nichts offen: `GET /health`, `/status`, `/status/stream`, `/metrics` und `POST /command` brauchen ein signiertes Token des SERVER (ein Viewer liest, ein Operator oder Administrator befiehlt), das Gateway braucht `GATEWAY_JWT_SECRET` nicht mehr, und was eine Identität ausführen darf, bestimmt `GATEWAY_IDENTITY_SCOPES` (standardmäßig nur die Operationen, die die Allowlist schon gibt). Die Container-Sonde (`dist/healthcheck.cjs`) signiert ein eigenes kurzlebiges Token.
+
 ## 🚀 Schnellstart
 
 Benötigt Node.js 20 oder neuer mit npm.
@@ -161,7 +163,7 @@ npm start
 
 ## 🧪 Tests
 
-177 automatische Tests laufen mit `npm test`. Sie brauchen weder Hardware noch etwas außerhalb dieses Rechners.
+187 automatische Tests laufen mit `npm test`. Sie brauchen weder Hardware noch etwas außerhalb dieses Rechners.
 
 Die CI führt `HYDRA_UMC_CI=1 python tools/ci_validate.py` aus; das prüft das Manifest, die Dokumente, die acht READMEs und die Bilder.
 

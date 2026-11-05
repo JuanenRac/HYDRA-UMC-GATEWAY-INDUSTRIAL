@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **The common identity of the family on the gateway, off by default (`GATEWAY_IDENTITY_KEY_FILE`):** the file holds the signing key of HYDRA-UMC-SERVER, and with it on nothing is open. `GET /health`, `/status`, `/status/stream` and `/metrics` need a signed token of the SERVER (`401` with none, `403` for an invalid one, loopback included), `POST /command` takes the caller from the token (a viewer reads, an operator or administrator commands), `GATEWAY_JWT_SECRET` becomes optional, and what an identity may run is `GATEWAY_IDENTITY_SCOPES` (by default only the operations the allowlist already gives). The container health probe is now `dist/healthcheck.cjs`, which signs a short-lived token of its own when the identity is on. Without the key nothing changes. 10 tests.
+
 - **Bench test script:** `docs/BENCH_TESTS.md` lists the write-gate checks that need a real Modbus device, all marked not executed.
 
 ## [0.1.9] - Modbus TCP behind a signed write gate, a journal of commands, a status stream and a manifest for the hub

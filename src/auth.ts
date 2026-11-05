@@ -21,6 +21,7 @@
 // =============================================================================
 import jwt from "jsonwebtoken";
 import type { NextFunction, Request, Response } from "express";
+import { identityMayDo, identityScopes, verifyServerToken } from "./serverIdentity.js";
 
 export interface CommandAuthConfig {
   secret: string;
@@ -95,6 +96,8 @@ const PLACEHOLDER = /(set[_ -]?locally|change[_ -]?me|replace[_ -]?me|your[_ -]?
 export function commandAuthStartupProblem(env: NodeJS.ProcessEnv = process.env): string | null {
   if ((env.GATEWAY_ALLOW_ANONYMOUS ?? "").trim() === "1") return null;
   const secret = env.GATEWAY_JWT_SECRET?.trim() ?? "";
+  // The identity of HYDRA-UMC-SERVER (GATEWAY_IDENTITY_KEY_FILE, serverIdentity.ts) is a credential of its own: with it on, a gateway without a secret is not open.
+  if (!secret && (env.GATEWAY_IDENTITY_KEY_FILE ?? "").trim() !== "") return null;
   if (resolveCertAuthAllowedCommonNames(env).length > 0) {
     // certificate login only works over mutual TLS: the list without a client CA would let nobody in (or, worse, look protected)
     if (!env.TLS_CERT_PATH?.trim() || !env.TLS_KEY_PATH?.trim() || !env.TLS_CLIENT_CA_PATH?.trim()) {
@@ -174,8 +177,42 @@ export function enforceCommandScope(req: Request, res: Response, protocol: strin
 // it guards. Only ever wired onto POST /command in server.ts - GET
 // /status and GET /health stay open (read-only diagnostics, not commands
 // that alter plant-floor state).
-export function requireCommandAuth(config: CommandAuthConfig | null, certificateCommonNames: readonly string[] = []) {
+export function requireCommandAuth(config: CommandAuthConfig | null, certificateCommonNames: readonly string[] = [], identityKey: Buffer | null = null) {
   return (req: Request, res: Response, next: NextFunction): void => {
+    if (identityKey !== null) {
+      // The identity of HYDRA-UMC-SERVER is on: a valid token of the SERVER is the caller (any role reads, admin and operator change). A token that is not one of
+      // the SERVER falls through to the other credentials this gateway accepts (its own secret, a client certificate); with none configured it is refused.
+      const header = req.headers.authorization;
+      const presented = header?.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
+      if (presented !== "") {
+        try {
+          const identity = verifyServerToken(presented, identityKey);
+          if (!identityMayDo(identity, req.method)) {
+            res.locals.auditOutcome = "auth_role_read_only";
+            res.locals.auditReason = `the role ${identity.role} may only read`;
+            res.status(403).json({ error: "this role may only read" });
+            return;
+          }
+          req.commandCaller = identity.username;
+          req.commandScopes = identityScopes();
+          req.commandRoles = [identity.role];
+          req.serverIdentity = identity;
+          next();
+          return;
+        } catch (error) {
+          if (config === null && certificateCommonNames.length === 0) {
+            res.locals.auditOutcome = "auth_invalid_token";
+            res.locals.auditReason = error instanceof Error ? error.message : String(error);
+            res.status(403).json({ error: `invalid identity: ${error instanceof Error ? error.message : "refused"}` });
+            return;
+          }
+        }
+      } else if (config === null && certificateCommonNames.length === 0) {
+        res.locals.auditOutcome = "auth_missing_token";
+        res.status(401).json({ error: "missing Authorization: Bearer <token of HYDRA-UMC-SERVER> header" });
+        return;
+      }
+    }
     if (certificateCommonNames.length > 0) {
       const commonName = verifiedClientCertificateCommonName(req);
       if (commonName !== null && certificateCommonNames.includes(commonName)) {
@@ -192,6 +229,11 @@ export function requireCommandAuth(config: CommandAuthConfig | null, certificate
       }
     }
     if (config === null) {
+      if (identityKey !== null) {
+        res.locals.auditOutcome = "auth_missing_token";
+        res.status(401).json({ error: "missing Authorization: Bearer <token of HYDRA-UMC-SERVER> header" });
+        return;
+      }
       next();
       return;
     }
@@ -227,7 +269,10 @@ export function requireCommandAuth(config: CommandAuthConfig | null, certificate
 // One human-readable line for the real startup banner - same reasoning
 // as describeTlsMode() in tls.ts: an operator must see, at boot, whether
 // /command is actually gated or wide open, never silently.
-export function describeCommandAuthMode(config: CommandAuthConfig | null, certificateCommonNames: readonly string[] = []): string {
+export function describeCommandAuthMode(config: CommandAuthConfig | null, certificateCommonNames: readonly string[] = [], identityOn = false): string {
+  if (identityOn) {
+    return `identity of HYDRA-UMC-SERVER: every route needs its signed token (viewer reads, operator and admin command)${config ? ", or a Bearer token of GATEWAY_JWT_SECRET on POST /command" : ""}`;
+  }
   if (certificateCommonNames.length > 0) {
     return `POST /command accepts a verified client certificate with CN in [${certificateCommonNames.join(", ")}]${config ? " or a valid Bearer token" : ""}`;
   }

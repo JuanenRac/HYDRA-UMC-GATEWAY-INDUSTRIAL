@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-177%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-187%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.9-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,7 +36,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | Version | `0.1.9` |
 | Maturité | Fonctionnel |
-| Tests | 177 (`npm test`) |
+| Tests | 187 (`npm test`) |
 | Technologie | Node.js / Express / real TCP/HTTP reachability probes |
 | Cible | Le Raspberry Pi CM5 d'une cellule HYDRA-UMC |
 | Sur matériel réel | Pas encore : aucune exécution sur du matériel réel n'est consignée pour cette version |
@@ -52,7 +52,7 @@ Chaque ligne est une partie de ce dépôt et le feu dit où elle en est aujourd'
 | Domaine | État | Ce que cela veut dire ici |
 |---|---|---|
 | Logiciel | 🟡 | Fonctionne pour son usage principal ; la vérification d'honnêteté ci-dessus liste ce qui manque encore |
-| Tests | 🟢 | 177 tests automatiques, exécutés à chaque modification |
+| Tests | 🟢 | 187 tests automatiques, exécutés à chaque modification |
 | Matériel réel | 🔴 | Pas encore : aucune exécution sur du matériel réel n'est consignée pour cette version |
 | Interface et protocoles | 🟡 | Les routes ou les messages proposés sont documentés et testés avec un client ; tous les clients ne les ont pas encore utilisés |
 | Intégration | 🟠 | Ses messages et ses routes sont vérifiés par rapport aux contrats partagés du SDK ; il n'a pas fonctionné avec l'équipement réel |
@@ -148,6 +148,8 @@ Le port d'écoute est lu d'abord dans `HYDRA_UMC_GATEWAY_PORT`. Le `PORT` partag
 
 Un adaptateur Modbus TCP, désactivé tant que `GATEWAY_MODBUS_MAP_FILE` ne désigne pas une carte déclarative d'appareils et de registres : `POST /command` avec le protocole `Modbus` lit un registre par son nom (`modbus:<appareil>/<registre>`), mis à l'échelle en unités d'ingénierie. L'écriture est distincte et plus stricte : elle exige `GATEWAY_WRITES=1`, un registre que la carte déclare inscriptible avec son propre minimum et maximum, les deux étapes et le contrôle de l'état de la cellule de la porte d'écriture, le rôle `admin` dans le jeton, et la valeur est relue depuis l'appareil ; une valeur qui ne revient pas est signalée `write_unverified`, jamais acceptée. `GATEWAY_JOURNAL_URL` envoie chaque ordre à HYDRA-UMC-DATALAKE comme une chronologie interrogeable (`GET /command/journal` liste les plus récents), et `GATEWAY_STATUS_STREAM=1` sert `GET /status/stream`, qui pousse un changement d'accessibilité comme événement Server-Sent au lieu de faire scruter les clients.
 
+L'identité commune de la famille, désactivée par défaut : `GATEWAY_IDENTITY_KEY_FILE` désigne un fichier avec la clé de signature de HYDRA-UMC-SERVER (au moins 32 caractères). Activée, plus rien n'est ouvert : `GET /health`, `/status`, `/status/stream`, `/metrics` et `POST /command` exigent un jeton signé du SERVER (un viewer lit, un opérateur ou administrateur commande), la passerelle n'a plus besoin de `GATEWAY_JWT_SECRET`, et ce qu'une identité peut exécuter est donné par `GATEWAY_IDENTITY_SCOPES` (par défaut seulement les opérations que la liste autorisée accorde déjà). La sonde du conteneur (`dist/healthcheck.cjs`) signe un jeton propre de courte durée.
+
 ## 🚀 Démarrage rapide
 
 Nécessite Node.js 20 ou plus récent avec npm.
@@ -161,7 +163,7 @@ npm start
 
 ## 🧪 Tests
 
-177 tests automatiques s'exécutent avec `npm test`. Ils n'ont besoin ni de matériel ni de rien en dehors de cette machine.
+187 tests automatiques s'exécutent avec `npm test`. Ils n'ont besoin ni de matériel ni de rien en dehors de cette machine.
 
 La CI exécute `HYDRA_UMC_CI=1 python tools/ci_validate.py`, qui vérifie le manifeste, les documents, les huit README et les images.
 

@@ -52,6 +52,7 @@ import {
   resolveCertAuthAllowedCommonNames,
   resolveCommandAuthConfig,
 } from "./auth.js";
+import { requireServerIdentity, resolveIdentityKey } from "./serverIdentity.js";
 import { CommandRateLimiter, requireCommandRateLimit, resolveRateLimitConfig, describeRateLimitMode } from "./rateLimit.js";
 import { FileCommandAuditLogger, recordCommandAttempt, resolveAuditLogPath, type CommandAuditLogger } from "./audit.js";
 import { resolveServicePort } from "./portConfig.js";
@@ -186,6 +187,8 @@ export interface BuildAppOptions {
   metrics?: MetricsRegistry;
   // Overridable so tests can read the journal; by default it comes from the environment and exists only when GATEWAY_JOURNAL_URL or GATEWAY_JOURNAL=1 is set.
   journal?: CommandJournal;
+  // Overridable so tests can turn the identity of HYDRA-UMC-SERVER on without a key file; by default it comes from GATEWAY_IDENTITY_KEY_FILE (null: off).
+  identityKey?: Buffer | null;
 }
 
 /** Headers every answer carries: it is a JSON API, never a page, so nothing it returns may be sniffed, framed, cached or given a script. */
@@ -223,7 +226,10 @@ export function buildApp(options: BuildAppOptions = {}) {
       ...(modbusMap ? { allowlist: { ...DEFAULT_ALLOWLIST, Modbus: new Set(["read"]) } } : {}),
     });
   const commandAuthConfig = resolveCommandAuthConfig();
-  const commandAuthMiddleware = commandAuthConfig || certCommonNames.length > 0 ? [requireCommandAuth(commandAuthConfig, certCommonNames)] : [];
+  // The identity of HYDRA-UMC-SERVER (GATEWAY_IDENTITY_KEY_FILE, off by default): with it on nothing is open, GET /health and /status included.
+  const identityKey = options.identityKey !== undefined ? options.identityKey : resolveIdentityKey();
+  const identityGate = identityKey ? [requireServerIdentity(identityKey)] : [];
+  const commandAuthMiddleware = commandAuthConfig || certCommonNames.length > 0 || identityKey ? [requireCommandAuth(commandAuthConfig, certCommonNames, identityKey)] : [];
   const rateLimiter = options.rateLimiter ?? new CommandRateLimiter();
   const auditLogger = options.auditLogger ?? new FileCommandAuditLogger();
   const statusCacheMs = options.statusCacheMs ?? resolveStatusCacheMs();
@@ -265,11 +271,11 @@ export function buildApp(options: BuildAppOptions = {}) {
   // that means something real" property that scan exists to provide. This
   // route answers "is the gateway process itself up", nothing about its
   // children - that question stays /status's own job, unchanged.
-  app.get("/health", (_req, res) => {
+  app.get("/health", ...identityGate, (_req, res) => {
     res.json({ gateway: "HYDRA-UMC-GATEWAY-INDUSTRIAL", version: readPackageVersion(), status: "ok" });
   });
 
-  app.get("/status", async (_req, res, next) => {
+  app.get("/status", ...identityGate, async (_req, res, next) => {
     try {
       const now = Date.now();
       if (!statusCache || now - statusCache.at >= statusCacheMs) {
@@ -318,7 +324,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   if (statusStreamEnabled()) {
     const everyMs = statusStreamIntervalMs();
     const maxClients = statusStreamMaxClients();
-    app.get("/status/stream", async (req, res) => {
+    app.get("/status/stream", ...identityGate, async (req, res) => {
       if (streamClients.size >= maxClients) {
         res.status(503).json({ error: `at most ${maxClients} status streams are open at once` });
         return;
@@ -360,7 +366,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   }
 
   if (metricsEnabled()) {
-    app.get("/metrics", (_req, res) => {
+    app.get("/metrics", ...identityGate, (_req, res) => {
       res.type("text/plain; version=0.0.4; charset=utf-8").send(metrics.render());
     });
   }
@@ -620,7 +626,13 @@ function main() {
     process.exit(1);
   }
   const auditLogger = new FileCommandAuditLogger();
-  const app = buildApp({ auditLogger });
+  let app: ReturnType<typeof buildApp>;
+  try {
+    app = buildApp({ auditLogger });
+  } catch (error) {
+    console.error(`[HYDRA-UMC-GATEWAY-INDUSTRIAL] refusing to start: ${(error as Error).message}`);
+    process.exit(1);
+  }
   // Real TLS/mTLS, opt-in via real certificate files - see src/tls.ts's
   // own header comment for why this exists (this project's own README
   // already claimed mTLS as a delivered feature before this). A
@@ -645,7 +657,7 @@ function main() {
     console.log(" ROLE: Industry 4.0 interoperability bridge for factory standards");
     console.log(` STATUS: Running on ${bindHost}:${PORT} - status: ${scheme}://localhost:${PORT}/status`);
     console.log(` SECURITY: ${describeTlsMode(tlsConfig)}`);
-    console.log(` COMMAND AUTH: ${describeCommandAuthMode(commandAuthConfigForBanner, certCommonNamesForBanner)}`);
+    console.log(` COMMAND AUTH: ${describeCommandAuthMode(commandAuthConfigForBanner, certCommonNamesForBanner, (process.env.GATEWAY_IDENTITY_KEY_FILE ?? "").trim() !== "")}`);
     console.log(` PROBES: ${resolveProbeMode() === "protocol" ? "protocol (OPC UA Hello, MQTT CONNECT, MTConnect /probe document)" : "reachability (TCP connect / HTTP 2xx)"}`);
     console.log(` RATE LIMIT: ${describeRateLimitMode(rateLimitConfigForBanner)}`);
     console.log(` AUDIT: every POST /command attempt logged to ${resolveAuditLogPath()}`);

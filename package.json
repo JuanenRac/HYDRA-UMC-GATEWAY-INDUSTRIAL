@@ -6,7 +6,7 @@
   "description": "Industry 4.0 interoperability bridge - aggregates HYDRA-UMC-OPCUA-SERVER, HYDRA-UMC-MQTT-BROKER and HYDRA-UMC-MTCONNECT-ADAPTER behind a single status/health surface for factory PLCs, SCADA and IIoT platforms.",
   "scripts": {
     "dev": "tsx src/server.ts",
-    "bundle": "esbuild src/server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "bundle": "esbuild src/server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs && esbuild src/healthcheck.ts --bundle --platform=node --format=cjs --outfile=dist/healthcheck.cjs",
     "build": "npm run bundle",
     "smoke": "node scripts/smoke.mjs",
     "start": "node dist/server.cjs",

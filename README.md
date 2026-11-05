@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-177%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-187%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.9-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,7 +36,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | Version | `0.1.9` |
 | Maturity | Functional |
-| Tests | 177 (`npm test`) |
+| Tests | 187 (`npm test`) |
 | Stack | Node.js / Express / real TCP/HTTP reachability probes |
 | Target | The Raspberry Pi CM5 of a HYDRA-UMC cell |
 | On real hardware | Not yet: no run on real hardware is recorded for this version |
@@ -52,7 +52,7 @@ Each line is one part of this repository and the light says how far it is today.
 | Area | State | What it means here |
 |---|---|---|
 | Software | 🟡 | Works for its main purpose; the honesty check above lists what is still missing |
-| Tests | 🟢 | 177 automated tests, run on every change |
+| Tests | 🟢 | 187 automated tests, run on every change |
 | Real hardware | 🔴 | Not yet: no run on real hardware is recorded for this version |
 | Interface and protocols | 🟡 | The routes or messages it offers are documented and tested with a client; not every client has used them yet |
 | Integration | 🟠 | Its messages and routes are checked against the shared contracts of the SDK; it has not run together with the real equipment |
@@ -147,6 +147,8 @@ The listen port is read from `HYDRA_UMC_GATEWAY_PORT` first. The shared `PORT` s
 
 A Modbus TCP adapter, off until `GATEWAY_MODBUS_MAP_FILE` names a declarative map of devices and registers: `POST /command` with the protocol `Modbus` reads a register by its name (`modbus:<device>/<register>`), scaled to engineering units. Writing is separate and stricter: it needs `GATEWAY_WRITES=1`, a register the map lists as writable with its own minimum and maximum, the two steps and the cell-state check of the write gate, the `admin` role in the token, and the value is read back from the device; a value that does not come back is reported as `write_unverified`, never as accepted. `GATEWAY_JOURNAL_URL` sends every order to HYDRA-UMC-DATALAKE as a queryable timeline (`GET /command/journal` lists the newest), and `GATEWAY_STATUS_STREAM=1` serves `GET /status/stream`, which pushes a change of reachability as a Server-Sent Event instead of making clients poll.
 
+The common identity of the family, off by default: `GATEWAY_IDENTITY_KEY_FILE` names a file with the signing key of HYDRA-UMC-SERVER (at least 32 characters). With it on, nothing is open: `GET /health`, `/status`, `/status/stream`, `/metrics` and `POST /command` need a signed token of the SERVER (a viewer reads, an operator or administrator commands), the gateway does not need `GATEWAY_JWT_SECRET` any more, and what an identity may run is `GATEWAY_IDENTITY_SCOPES` (by default only the operations the allowlist already gives). The container probe (`dist/healthcheck.cjs`) signs a short-lived token of its own.
+
 ## 🚀 Quick start
 
 Requires Node.js 20 or newer with npm.
@@ -160,7 +162,7 @@ npm start
 
 ## 🧪 Testing
 
-177 automated tests run with `npm test`. They need no hardware and nothing outside this machine.
+187 automated tests run with `npm test`. They need no hardware and nothing outside this machine.
 
 The CI runs `HYDRA_UMC_CI=1 python tools/ci_validate.py`, which checks the manifest, the documents, the eight READMEs and the pictures.
 

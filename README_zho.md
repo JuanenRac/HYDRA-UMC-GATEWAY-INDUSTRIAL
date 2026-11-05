@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-177%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-187%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.1.9-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,7 +36,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | 版本 | `0.1.9` |
 | 成熟度 | 可用 |
-| 测试 | 177 (`npm test`) |
+| 测试 | 187 (`npm test`) |
 | 技术栈 | Node.js / Express / real TCP/HTTP reachability probes |
 | 目标 | HYDRA-UMC 工作单元的 Raspberry Pi CM5 |
 | 真实硬件 | 尚未：此版本没有在真实硬件上运行的记录 |
@@ -52,7 +52,7 @@ GPL-3.0-or-later - see LICENSE
 | 领域 | 状态 | 在这里的含义 |
 |---|---|---|
 | 软件 | 🟡 | 主要用途可用；上面的诚实性检查列出了仍然缺少的内容 |
-| 测试 | 🟢 | 177 项自动测试，每次变更都会运行 |
+| 测试 | 🟢 | 187 项自动测试，每次变更都会运行 |
 | 真实硬件 | 🔴 | 尚未：此版本没有在真实硬件上运行的记录 |
 | 接口与协议 | 🟡 | 提供的路由或消息已有文档，并用客户端测试过；尚未被所有客户端使用 |
 | 集成 | 🟠 | 其消息和路由已对照 SDK 的共享契约检查；尚未与真实设备一起运行 |
@@ -151,6 +151,8 @@ docker compose up --build
 
 Modbus TCP 适配器在 `GATEWAY_MODBUS_MAP_FILE` 指向设备与寄存器的声明式映射之前保持关闭：协议为 `Modbus` 的 `POST /command` 按名称（`modbus:<设备>/<寄存器>`）读取寄存器，并换算为工程单位。写入是分开的，也更严格：需要 `GATEWAY_WRITES=1`、映射中声明为可写且带有各自最小值和最大值的寄存器、写入门的两个步骤和单元状态检查、令牌中的 `admin` 角色，并且写入的值会从设备读回；未能读回的值报告为 `write_unverified`，绝不算作已接受。`GATEWAY_JOURNAL_URL` 把每条指令作为可查询的时间线发送到 HYDRA-UMC-DATALAKE（`GET /command/journal` 列出最新的），`GATEWAY_STATUS_STREAM=1` 提供 `GET /status/stream`，以 Server-Sent Event 推送可达性变化，而不必让客户端轮询。
 
+家族共用的身份，默认关闭：`GATEWAY_IDENTITY_KEY_FILE` 指向保存 HYDRA-UMC-SERVER 签名密钥（至少 32 个字符）的文件。开启后一切都不再开放：`GET /health`、`/status`、`/status/stream`、`/metrics` 和 `POST /command` 都需要 SERVER 签发的令牌（viewer 只读，operator 或 administrator 可下达命令），网关不再需要 `GATEWAY_JWT_SECRET`，身份可执行的操作由 `GATEWAY_IDENTITY_SCOPES` 决定（默认只有允许列表已经允许的操作）。容器探针（`dist/healthcheck.cjs`）会自行签发短期令牌。
+
 ## 🚀 快速开始
 
 需要 Node.js 20 或更高版本及 npm。
@@ -164,7 +166,7 @@ npm start
 
 ## 🧪 测试
 
-运行 `npm test` 会执行 177 个自动测试。 不需要硬件，也不需要这台机器以外的任何东西。
+运行 `npm test` 会执行 187 个自动测试。 不需要硬件，也不需要这台机器以外的任何东西。
 
 CI 运行 `HYDRA_UMC_CI=1 python tools/ci_validate.py`，检查清单、文档、八个 README 和图片。
 
