@@ -269,19 +269,25 @@ export function requireCommandAuth(config: CommandAuthConfig | null, certificate
 // One human-readable line for the real startup banner - same reasoning
 // as describeTlsMode() in tls.ts: an operator must see, at boot, whether
 // /command is actually gated or wide open, never silently.
-/** The part of the command authentication that may be printed: whether it is configured and the audience, never the secret. */
-export interface CommandAuthSummary {
-  audience?: string;
+/** Which command authentication is active: only this enum reaches the startup banner, never a value read from the environment. */
+export type CommandAuthKind = "identity" | "certificate" | "bearer" | "open";
+
+export function commandAuthKind(bearerConfigured: boolean, certificateAuth: boolean, identityOn: boolean): CommandAuthKind {
+  if (identityOn) return "identity";
+  if (certificateAuth) return "certificate";
+  return bearerConfigured ? "bearer" : "open";
 }
 
-export function describeCommandAuthMode(config: CommandAuthSummary | null, certificateCommonNames: readonly string[] = [], identityOn = false): string {
-  if (identityOn) {
-    return `identity of HYDRA-UMC-SERVER: every route needs its signed token (viewer reads, operator and admin command)${config ? ", or a Bearer token of GATEWAY_JWT_SECRET on POST /command" : ""}`;
+/** Fixed banner text per kind (constants only). */
+export function describeCommandAuthMode(kind: CommandAuthKind): string {
+  switch (kind) {
+    case "identity":
+      return "identity of HYDRA-UMC-SERVER: every route needs its signed token (viewer reads, operator and admin command)";
+    case "certificate":
+      return "POST /command accepts a verified client certificate";
+    case "bearer":
+      return "POST /command requires a valid Bearer token (HS256, exp and sub required)";
+    default:
+      return "POST /command has NO caller authentication - configure it or restrict network access";
   }
-  if (certificateCommonNames.length > 0) {
-    return `POST /command accepts a verified client certificate with CN in [${certificateCommonNames.join(", ")}]${config ? " or a valid Bearer token" : ""}`;
-  }
-  return config
-    ? `POST /command requires a valid Bearer token (HS256, GATEWAY_JWT_SECRET, exp and sub required${config.audience ? `, aud=${config.audience}` : ""}${scopesRequired() ? ", scope required per protocol:operation" : ""})`
-    : "POST /command has NO caller authentication (GATEWAY_JWT_SECRET not set) - configure it or restrict network access";
 }

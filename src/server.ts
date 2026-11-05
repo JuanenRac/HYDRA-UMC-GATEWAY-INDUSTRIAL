@@ -45,6 +45,7 @@ import { resolveTlsConfig, describeTlsMode } from "./tls.js";
 import {
   commandAuthStartupProblem,
   enforceCommandScope,
+  commandAuthKind,
   describeCommandAuthMode,
   requireCommandAuth,
   requireTlsForAuthEnabled,
@@ -643,6 +644,7 @@ function main() {
   const server = tlsConfig ? createHttpsServer(tlsConfig, app) : app;
   const commandAuthConfigForBanner = resolveCommandAuthConfig();
   const certCommonNamesForBanner = resolveCertAuthAllowedCommonNames();
+  const commandAuthKindForBanner = commandAuthKind(commandAuthConfigForBanner !== null && commandAuthConfigForBanner !== undefined, certCommonNamesForBanner.length > 0, (process.env.GATEWAY_IDENTITY_KEY_FILE ?? "").trim() !== "");
   if (certCommonNamesForBanner.length > 0 && !tlsConfig?.requestCert) {
     console.error("[HYDRA-UMC-GATEWAY-INDUSTRIAL] refusing to start: GATEWAY_CERT_ALLOWED_CN needs mutual TLS (TLS_CLIENT_CA_PATH)");
     process.exit(1);
@@ -657,7 +659,7 @@ function main() {
     console.log(" ROLE: Industry 4.0 interoperability bridge for factory standards");
     console.log(` STATUS: Running on ${bindHost}:${PORT} - status: ${scheme}://localhost:${PORT}/status`);
     console.log(` SECURITY: ${describeTlsMode(tlsConfig)}`);
-    console.log(` COMMAND AUTH: ${describeCommandAuthMode(commandAuthConfigForBanner ? { audience: process.env.GATEWAY_JWT_AUDIENCE?.trim() || undefined } : null, certCommonNamesForBanner, (process.env.GATEWAY_IDENTITY_KEY_FILE ?? "").trim() !== "")}`);
+    console.log(` COMMAND AUTH: ${describeCommandAuthMode(commandAuthKindForBanner)}`);
     console.log(` PROBES: ${resolveProbeMode() === "protocol" ? "protocol (OPC UA Hello, MQTT CONNECT, MTConnect /probe document)" : "reachability (TCP connect / HTTP 2xx)"}`);
     console.log(` RATE LIMIT: ${describeRateLimitMode(rateLimitConfigForBanner)}`);
     console.log(` AUDIT: every POST /command attempt logged to ${resolveAuditLogPath()}`);
