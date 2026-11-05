@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.2.0] - The build test of the repository compiles only on CI or when allowed: for the stacks that compile (rust, go, android, flutter, firmware-c), tools/buildtest.py prints BUILDTEST=SKIPPED with exit status 2 on a plain PC, never a... (and 2 more changes)
+
 - **The build test of the repository compiles only on CI or when allowed:** for the stacks that compile (`rust`, `go`, `android`, `flutter`, `firmware-c`), `tools/build_test.py` prints `BUILD_TEST=SKIPPED` with exit status 2 on a plain PC, never a pass; `ALLOW_LOCAL_BUILD=1` allows it and a CI runner always may. The `python` and `node` stacks are not locked.
 
 - **The common identity of the family on the gateway, off by default (`GATEWAY_IDENTITY_KEY_FILE`):** the file holds the signing key of HYDRA-UMC-SERVER, and with it on nothing is open. `GET /health`, `/status`, `/status/stream` and `/metrics` need a signed token of the SERVER (`401` with none, `403` for an invalid one, loopback included), `POST /command` takes the caller from the token (a viewer reads, an operator or administrator commands), `GATEWAY_JWT_SECRET` becomes optional, and what an identity may run is `GATEWAY_IDENTITY_SCOPES` (by default only the operations the allowlist already gives). The container health probe is now `dist/healthcheck.cjs`, which signs a short-lived token of its own when the identity is on. Without the key nothing changes. 10 tests.
