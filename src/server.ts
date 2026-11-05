@@ -657,7 +657,7 @@ function main() {
     console.log(" ROLE: Industry 4.0 interoperability bridge for factory standards");
     console.log(` STATUS: Running on ${bindHost}:${PORT} - status: ${scheme}://localhost:${PORT}/status`);
     console.log(` SECURITY: ${describeTlsMode(tlsConfig)}`);
-    console.log(` COMMAND AUTH: ${describeCommandAuthMode(commandAuthConfigForBanner, certCommonNamesForBanner, (process.env.GATEWAY_IDENTITY_KEY_FILE ?? "").trim() !== "")}`);
+    console.log(` COMMAND AUTH: ${describeCommandAuthMode(commandAuthConfigForBanner ? { audience: process.env.GATEWAY_JWT_AUDIENCE?.trim() || undefined } : null, certCommonNamesForBanner, (process.env.GATEWAY_IDENTITY_KEY_FILE ?? "").trim() !== "")}`);
     console.log(` PROBES: ${resolveProbeMode() === "protocol" ? "protocol (OPC UA Hello, MQTT CONNECT, MTConnect /probe document)" : "reachability (TCP connect / HTTP 2xx)"}`);
     console.log(` RATE LIMIT: ${describeRateLimitMode(rateLimitConfigForBanner)}`);
     console.log(` AUDIT: every POST /command attempt logged to ${resolveAuditLogPath()}`);

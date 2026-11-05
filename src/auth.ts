@@ -269,7 +269,12 @@ export function requireCommandAuth(config: CommandAuthConfig | null, certificate
 // One human-readable line for the real startup banner - same reasoning
 // as describeTlsMode() in tls.ts: an operator must see, at boot, whether
 // /command is actually gated or wide open, never silently.
-export function describeCommandAuthMode(config: CommandAuthConfig | null, certificateCommonNames: readonly string[] = [], identityOn = false): string {
+/** The part of the command authentication that may be printed: whether it is configured and the audience, never the secret. */
+export interface CommandAuthSummary {
+  audience?: string;
+}
+
+export function describeCommandAuthMode(config: CommandAuthSummary | null, certificateCommonNames: readonly string[] = [], identityOn = false): string {
   if (identityOn) {
     return `identity of HYDRA-UMC-SERVER: every route needs its signed token (viewer reads, operator and admin command)${config ? ", or a Bearer token of GATEWAY_JWT_SECRET on POST /command" : ""}`;
   }
