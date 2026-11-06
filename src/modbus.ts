@@ -202,7 +202,7 @@ export function modbusExchange(device: Pick<ModbusDevice, "host" | "port" | "uni
     socket.on("error", (error) => finish(new ModbusError(`connection failed: ${error.message}`)));
     socket.on("close", () => finish(new ModbusError("the device closed the connection before it answered")));
     socket.on("data", (chunk) => {
-      received = Buffer.concat([received, chunk]);
+      received = Buffer.concat([received, chunk as Buffer]);
       if (received.length < 7) return;
       const length = received.readUInt16BE(4);
       if (length < 2 || length > 254) return finish(new ModbusError("the answer has an impossible length"));
