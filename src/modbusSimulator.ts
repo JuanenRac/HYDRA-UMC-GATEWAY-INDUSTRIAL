@@ -111,7 +111,7 @@ export async function startSimulatedModbus(options: SimulatedModbusOptions = {})
     socket.on("error", () => undefined);
     let buffer = Buffer.alloc(0);
     socket.on("data", (chunk) => {
-      buffer = Buffer.concat([buffer, chunk]);
+      buffer = Buffer.concat([buffer, chunk as Buffer]);
       while (buffer.length >= 8) {
         const length = buffer.readUInt16BE(4);
         if (buffer.length < 6 + length) return;

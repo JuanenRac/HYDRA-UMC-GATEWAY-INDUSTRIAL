@@ -105,7 +105,7 @@ function exchange(host: string, port: number, payload: Buffer, enough: (received
     socket.setTimeout(timeoutMs);
     socket.once("connect", () => socket.write(payload));
     socket.on("data", (chunk) => {
-      chunks.push(chunk);
+      chunks.push(chunk as Buffer);
       if (enough(Buffer.concat(chunks))) finish();
     });
     socket.once("timeout", () => finish(`no answer from ${host}:${port} within ${timeoutMs}ms`));
