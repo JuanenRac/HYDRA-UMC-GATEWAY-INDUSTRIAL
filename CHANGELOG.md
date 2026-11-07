@@ -4,6 +4,7 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **107 new tests for the modules that had none of their own:** `tests/targets.test.ts` (the format of an OPC-UA NodeId, an MTConnect path and a Modbus target: tables of accepted and refused values with their limits, a fixed-seed fuzz that nothing with a control character gets in, the `GATEWAY_STRICT_TARGETS` switch), `tests/metrics.test.ts` (the Prometheus text: HELP and TYPE lines, counters, alphabetical outcomes, the children of the last round only, escaping of labels so a name cannot add a line, the `GATEWAY_METRICS` switch) and `tests/writeAuditStore.test.ts` (the key file and its length, a missing, empty or blank-lined audit file, the line that is not JSON, the cap of 1000 records read back and a chain that starts after 1, a record taken out, swapped or repeated, a signature missing or a wrong key, the owner-only file and a failing sink). 294 tests pass in CI.
 - **Dependencies updated:** the npm dependencies move to their latest compatible releases (express 5.3, supertest 7.3, tsx 4.23 and the Node and supertest type definitions).
 
 ## [0.2.0] - The build test of the repository compiles only on CI or when allowed: for the stacks that compile (rust, go, android, flutter, firmware-c), tools/buildtest.py prints BUILDTEST=SKIPPED with exit status 2 on a plain PC, never a... (and 2 more changes)
