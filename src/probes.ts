@@ -17,9 +17,10 @@
 //     it's an HTTP service already - checking its actual /probe endpoint
 //     is a stronger, application-level signal than a bare TCP connect
 //     would be.
-// Neither performs a full protocol handshake (an actual OPC-UA Hello or
-// MQTT CONNECT) - that's real scope left for later, documented here
-// rather than silently implied by the word "reachable".
+// These two are the default ("tcp") mode and do not speak the protocol: a
+// reachable port is not an answering server. The "protocol" mode further
+// down (GATEWAY_PROBE_MODE=protocol) sends the OPC UA Hello and the MQTT
+// CONNECT and reads the answer.
 // =============================================================================
 
 import { Socket } from "node:net";
