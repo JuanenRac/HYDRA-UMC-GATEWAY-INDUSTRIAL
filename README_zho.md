@@ -92,6 +92,8 @@ IIoT 平台进行交互。
 
 **HYDRA-UMC-GATEWAY-INDUSTRIAL** 是 `HYDRA-UMC-OPCUA-SERVER`、`HYDRA-UMC-MQTT-BROKER` 和 `HYDRA-UMC-MTCONNECT-ADAPTER` 前面唯一的状态窗口：它检查各自是否应答，并且只接受效果仅为可达性检查的允许列表命令。它从不移动机器。
 
+> **平台：** 本 README 中的 CM5 指的是目前正在运行的试验台；HYDRA-UMC 的目标平台是 NVIDIA Jetson Orin NX 16 GB，这是尚未制造或测试的设计。
+
 ## 🏛️ 架构
 
 <p align="center">

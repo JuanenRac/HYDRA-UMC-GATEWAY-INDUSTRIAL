@@ -94,6 +94,8 @@ GPL-3.0-or-later - see LICENSE
 
 **HYDRA-UMC-GATEWAY-INDUSTRIAL** は `HYDRA-UMC-OPCUA-SERVER`、`HYDRA-UMC-MQTT-BROKER`、`HYDRA-UMC-MTCONNECT-ADAPTER` の手前にある単一のステータス窓口です。それぞれが応答するかを確認し、効果が到達性の確認だけに限られる許可リストのコマンドしか受け付けません。機械を動かすことはありません。
 
+> **プラットフォーム：** この README の「CM5」は、現在動作している試験用ベンチを指します。HYDRA-UMC の目標プラットフォームは NVIDIA Jetson Orin NX 16 GB ですが、これは製作も試験もされていない設計です。
+
 ## 🏛️ アーキテクチャ
 
 <p align="center">

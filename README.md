@@ -87,6 +87,8 @@ Today it is the single status surface in front of the OPC-UA server, the MQTT br
 
 **HYDRA-UMC-GATEWAY-INDUSTRIAL** is the single status surface in front of `HYDRA-UMC-OPCUA-SERVER`, `HYDRA-UMC-MQTT-BROKER` and `HYDRA-UMC-MTCONNECT-ADAPTER`: it checks that each answers and accepts only an allow-listed set of commands whose effect is a reachability check. It never moves a machine.
 
+> **Platform:** where this README says CM5, it means the pilot bench that runs today; the target platform of HYDRA-UMC is an NVIDIA Jetson Orin NX 16 GB, a design that has not been built or tested.
+
 ## 🏛️ Architecture
 
 <p align="center">

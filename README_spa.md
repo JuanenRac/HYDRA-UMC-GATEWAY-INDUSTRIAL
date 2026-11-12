@@ -87,6 +87,8 @@ Hoy es la superficie de estado única delante del servidor OPC-UA, el broker MQT
 
 **HYDRA-UMC-GATEWAY-INDUSTRIAL** es la superficie de estado única delante de `HYDRA-UMC-OPCUA-SERVER`, `HYDRA-UMC-MQTT-BROKER` y `HYDRA-UMC-MTCONNECT-ADAPTER`: comprueba que cada uno responde y acepta solo un conjunto permitido de órdenes cuyo efecto es una comprobación de alcance. Nunca mueve una máquina.
 
+> **Plataforma:** donde este README dice CM5, se refiere al banco piloto que funciona hoy; la plataforma objetivo de HYDRA-UMC es una NVIDIA Jetson Orin NX de 16 GB, un diseño que no se ha construido ni probado.
+
 ## 🏛️ Arquitectura
 
 <p align="center">

@@ -87,6 +87,8 @@ Hoje é a superfície de estado única à frente do servidor OPC-UA, do broker M
 
 O **HYDRA-UMC-GATEWAY-INDUSTRIAL** é a superfície de estado única à frente do `HYDRA-UMC-OPCUA-SERVER`, do `HYDRA-UMC-MQTT-BROKER` e do `HYDRA-UMC-MTCONNECT-ADAPTER`: verifica se cada um responde e aceita apenas um conjunto permitido de comandos cujo efeito é uma verificação de alcance. Nunca move uma máquina.
 
+> **Plataforma:** onde este README diz CM5, refere-se ao banco piloto que funciona hoje; a plataforma objetivo do HYDRA-UMC é uma NVIDIA Jetson Orin NX de 16 GB, um desenho que não foi construído nem testado.
+
 ## 🏛️ Arquitetura
 
 <p align="center">
