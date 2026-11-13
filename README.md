@@ -39,7 +39,7 @@ GPL-3.0-or-later - see LICENSE
 | Tests | 294 (`npm test`) |
 | Stack | Node.js / Express / real TCP/HTTP reachability probes |
 | Target | The Raspberry Pi CM5 of a HYDRA-UMC cell |
-| On real hardware | Not yet: no run on real hardware is recorded for this version |
+| On real hardware | Simulated only: tested against emulators, fakes or simulators; no run on real hardware is recorded for this version |
 
 **Jump to:** [Overview](#-overview) · [Architecture](#-architecture) · [Configuration](#-configuration) · [Quick start](#-quick-start) · [Testing](#-testing) · [Repository Structure](#-repository-structure) · [Related Projects](#-related-projects)
 
@@ -53,7 +53,7 @@ Each line is one part of this repository and the light says how far it is today.
 |---|---|---|
 | Software | 🟡 | Works for its main purpose; the honesty check above lists what is still missing |
 | Tests | 🟢 | 294 automated tests, run on every change |
-| Real hardware | 🔴 | Not yet: no run on real hardware is recorded for this version |
+| Real hardware | 🟠 | Simulated only: tested against emulators, fakes or simulators; no run on real hardware is recorded for this version |
 | Interface and protocols | 🟡 | The routes or messages it offers are documented and tested with a client; not every client has used them yet |
 | Integration | 🟠 | Its messages and routes are checked against the shared contracts of the SDK; it has not run together with the real equipment |
 | Security | 🟡 | Access control, input limits or signatures are implemented and tested on a computer; nobody outside the project has reviewed them |
