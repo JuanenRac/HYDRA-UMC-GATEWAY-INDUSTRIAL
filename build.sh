@@ -31,7 +31,8 @@ printf '%s\n' "* 3. Report the result and keep an interactive terminal open."
 printf '%s\n' "*******************************************************************************"
 printf '\n'
 # HYDRA_UMC_SCRIPT_STANDARD_BANNER_END
-npm install-scripts approve --all
+# `npm install-scripts approve` only exists in the newest npm; npm 10 stops with "Unknown command", so ask first and never fail the run over it.
+if npm install-scripts --help >/dev/null 2>&1; then npm install-scripts approve --all || echo "npm install-scripts approve failed; continuing."; fi
 
 echo "========================================"
 echo " Running the real test suite (vitest)... "
