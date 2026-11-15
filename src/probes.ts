@@ -3,8 +3,8 @@
 // Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
 // GPL-3.0-or-later - see LICENSE
 //
-// Real network checks against each protocol bridge, replacing the static
-// CHILDREN list this project's GET /status used to return unconditionally,
+// Real network checks against each protocol bridge, instead of a static
+// CHILDREN list that GET /status would return unconditionally,
 // regardless of whether any child was actually up. Two check kinds, chosen
 // per protocol's own transport:
 //   - probeTcp(): a real TCP connect for OPC-UA and MQTT - both are raw

@@ -4,6 +4,7 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **Comments describe what the code does, not what it used to do:** the notes in the source and the tests say the present behaviour and the reason for it. Comments only: no behaviour changes.
 - **The SDK pin and the shared tools are up to date:** the SDK dependency names the newest release tag, and the shared tools are the canonical copies again.
 - **The development and build scripts no longer stop on npm 10:** `dev` and `build` (`.sh` and `.bat`) called `npm install-scripts approve --all`, a command that only the newest npm has, so the run ended with "Unknown command" before it started; they now ask `npm install-scripts --help` first and go on without it. A test reads the four scripts and fails if the call comes back unguarded.
 - **README: the platform statement:** a note says that where the README speaks of the CM5 it means the pilot bench that runs today, and that the target platform of HYDRA-UMC, an NVIDIA Jetson Orin NX 16 GB, is a design that has not been built or tested.
