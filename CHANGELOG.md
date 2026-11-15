@@ -4,12 +4,17 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+
+## [0.2.1]
+
 - **Comments describe what the code does, not what it used to do:** the notes in the source and the tests say the present behaviour and the reason for it. Comments only: no behaviour changes.
 - **The SDK pin and the shared tools are up to date:** the SDK dependency names the newest release tag, and the shared tools are the canonical copies again.
 - **The development and build scripts no longer stop on npm 10:** `dev` and `build` (`.sh` and `.bat`) called `npm install-scripts approve --all`, a command that only the newest npm has, so the run ended with "Unknown command" before it started; they now ask `npm install-scripts --help` first and go on without it. A test reads the four scripts and fails if the call comes back unguarded.
 - **README: the platform statement:** a note says that where the README speaks of the CM5 it means the pilot bench that runs today, and that the target platform of HYDRA-UMC, an NVIDIA Jetson Orin NX 16 GB, is a design that has not been built or tested.
 - **107 new tests for the modules that had none of their own:** `tests/targets.test.ts` (the format of an OPC-UA NodeId, an MTConnect path and a Modbus target: tables of accepted and refused values with their limits, a fixed-seed fuzz that nothing with a control character gets in, the `GATEWAY_STRICT_TARGETS` switch), `tests/metrics.test.ts` (the Prometheus text: HELP and TYPE lines, counters, alphabetical outcomes, the children of the last round only, escaping of labels so a name cannot add a line, the `GATEWAY_METRICS` switch) and `tests/writeAuditStore.test.ts` (the key file and its length, a missing, empty or blank-lined audit file, the line that is not JSON, the cap of 1000 records read back and a chain that starts after 1, a record taken out, swapped or repeated, a signature missing or a wrong key, the owner-only file and a failing sink). 294 tests pass in CI.
 - **Dependencies updated:** the npm dependencies move to their latest compatible releases (express 5.3, supertest 7.3, tsx 4.23 and the Node and supertest type definitions).
+
+- Build version synchronized with `hydra-umc.project.json` and the repository-native version source.
 
 ## [0.2.0] - The build test of the repository compiles only on CI or when allowed: for the stacks that compile (rust, go, android, flutter, firmware-c), tools/buildtest.py prints BUILDTEST=SKIPPED with exit status 2 on a plain PC, never a... (and 2 more changes)
 
