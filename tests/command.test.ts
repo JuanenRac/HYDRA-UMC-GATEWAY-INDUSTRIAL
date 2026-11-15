@@ -206,9 +206,9 @@ describe("CommandDispatcher executor rejection", () => {
   });
 
   it("a rejecting executor does not produce an unhandled promise rejection", async () => {
-    // Real regression coverage for the withTimeout() bug: the wrapping
-    // promise used to have no reject path, so a throwing executor's
-    // rejection was left unhandled - which crashes the process by
+    // Regression coverage for withTimeout(): the wrapping
+    // promise must have a reject path, otherwise a throwing executor's
+    // rejection is left unhandled - which crashes the process by
     // default under modern Node. Install a real listener and assert it
     // never fires, rather than trusting that no crash means no bug.
     const unhandled: unknown[] = [];
