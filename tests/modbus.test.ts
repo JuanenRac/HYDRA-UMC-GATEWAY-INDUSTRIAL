@@ -264,6 +264,20 @@ describe("writing through the write gate", () => {
     expect(device.requests.filter(([code]) => code === 6 || code === 16 || code === 5)).toHaveLength(0);
   });
 
+  it("still reads for a token that is not an admin while the writes are on", async () => {
+    useMap(mapFor(device.port));
+    writeEnv();
+    device.holding[20] = 125;
+    const app = buildApp();
+    const read = await command(app, { protocol: "Modbus", operation: "read", target: "modbus:plc1/setpoint" }, token({ role: "operator", scope: "modbus:read" }));
+    expect(read.status).toBe(200);
+    expect(read.body.status).toBe("accepted");
+    expect(read.body.result).toBeCloseTo(12.5);
+    const write = await prepare(app, "modbus:plc1/setpoint", 10, token({ role: "operator", scope: "modbus:*" }));
+    expect(write.status).toBe(403);
+    expect(write.body.reason).toContain("admin role");
+  });
+
   it("refuses to write while the cell is not READY, at either step", async () => {
     useMap(mapFor(device.port));
     writeEnv();

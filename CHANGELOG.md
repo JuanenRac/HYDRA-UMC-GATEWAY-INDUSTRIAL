@@ -4,6 +4,7 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **Reading a Modbus register no longer needs the admin role when the writes are on:** the role check of the write gate was made for every operation of the protocol, so with the writes switched on a token with only the read scope was refused (and the refusal was written to the audit chain of the writes) while the same read worked with the writes off. The gate now sees only `write` and `write_commit`; a read goes straight to the usual path. Test added with an operator token.
 
 ## [0.2.1]
 
