@@ -221,9 +221,9 @@ export class CommandDispatcher {
   // command must never appear to have merely been "too busy" to run.
   async dispatch(req: CommandRequest): Promise<CommandOutcome> {
     const gate = this.writeGate;
-    if (gate && GATED_WRITE_PROTOCOLS.includes(req.protocol) && this.isAuthorized(req.protocol, req.operation)) {
+    if (gate && GATED_WRITE_PROTOCOLS.includes(req.protocol) && (req.operation === "write" || req.operation === "write_commit") && this.isAuthorized(req.protocol, req.operation)) {
       const caller = req.caller ?? null;
-      // Writing to a Modbus controller is an administrator's act: the role is checked before the gate looks at the value, and the refusal is in the audit chain.
+      // Writing to a Modbus controller is an administrator's act: the role is checked before the gate looks at the value, and the refusal is in the audit chain. A read never comes here, so an operator can still supervise while writes are on.
       if (req.protocol === "Modbus" && !(req.roles ?? []).includes(MODBUS_WRITE_ROLE)) {
         const reason = `writing to a Modbus controller needs the ${MODBUS_WRITE_ROLE} role`;
         gate.deny(caller, req.target, reason);
