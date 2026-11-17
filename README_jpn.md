@@ -19,7 +19,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Standard-Industry%204.0-blue.svg" alt="Standard">
   <img src="https://img.shields.io/badge/Security-TLS%20and%20mTLS%20optional%2C%20off%20by%20default-orange.svg" alt="Security">
   <img src="https://img.shields.io/badge/Protocols-OPC--UA%20%2F%20MQTT%20%2F%20MTConnect-orange.svg" alt="Protocols">
-  <img src="https://img.shields.io/badge/Tests-295%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-296%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.2.1-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-functional-0F6CBD.svg" alt="Maturity">
 </p>
@@ -36,7 +36,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | バージョン | `0.2.1` |
 | 成熟度 | 機能する |
-| テスト | 295 (`npm test`) |
+| テスト | 296 (`npm test`) |
 | 技術 | Node.js / Express / real TCP/HTTP reachability probes |
 | 対象 | HYDRA-UMC セルの Raspberry Pi CM5 |
 | 実機での確認 | シミュレーションのみ：エミュレーター、模擬部品、シミュレーターで試験済み。このバージョンについて実機での動作記録はありません |
@@ -52,7 +52,7 @@ GPL-3.0-or-later - see LICENSE
 | 領域 | 状態 | ここでの意味 |
 |---|---|---|
 | ソフトウェア | 🟡 | 主な目的では動作します。足りない点はこの README の正直さの確認に書かれています |
-| テスト | 🟡 | 自動テスト 295 件を記録済み。正確な件数、または変更のたびに実行するワークフローはまだ確認されていません |
+| テスト | 🟡 | 自動テスト 296 件を記録済み。正確な件数、または変更のたびに実行するワークフローはまだ確認されていません |
 | 実機 | 🟠 | シミュレーションのみ：エミュレーター、模擬部品、シミュレーターで試験済み。このバージョンについて実機での動作記録はありません |
 | インターフェースとプロトコル | 🟡 | 提供するルートやメッセージは文書化され、クライアントで試験済みです。すべてのクライアントがまだ使ったわけではありません |
 | 連携 | 🟠 | メッセージとルートは SDK の共通契約に照らして検証されていますが、実機と一緒に動かしたことはありません |
@@ -173,7 +173,7 @@ npm start
 
 ## 🧪 テスト
 
-`npm test` で自動テスト 295 件を実行します。 ハードウェアも、このマシンの外にあるものも必要ありません。
+`npm test` で自動テスト 296 件を実行します。 ハードウェアも、このマシンの外にあるものも必要ありません。
 
 CI は `HYDRA_UMC_CI=1 python tools/ci_validate.py` を実行し、マニフェスト、文書、8 つの README、図を検査します。
 
