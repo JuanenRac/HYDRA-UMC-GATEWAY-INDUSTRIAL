@@ -52,14 +52,14 @@ Chaque ligne est une partie de ce dépôt et le feu dit où elle en est aujourd'
 | Domaine | État | Ce que cela veut dire ici |
 |---|---|---|
 | Logiciel | 🟡 | Fonctionne pour son usage principal ; la vérification d'honnêteté de ce README liste ce qui manque encore |
-| Tests | 🟢 | 295 tests automatiques, exécutés à chaque modification |
+| Tests | 🟡 | 295 tests automatiques consignés ; le nombre exact, ou un workflow qui les exécute à chaque modification, n'est pas encore confirmé |
 | Matériel réel | 🟠 | Simulé seulement : testé avec des émulateurs, des doubles de test ou des simulateurs ; aucune exécution sur du matériel réel n'est consignée pour cette version |
 | Interface et protocoles | 🟡 | Les routes ou les messages proposés sont documentés et testés avec un client ; tous les clients ne les ont pas encore utilisés |
 | Intégration | 🟠 | Ses messages et ses routes sont vérifiés par rapport aux contrats partagés du SDK ; il n'a pas fonctionné avec l'équipement réel |
 | Sécurité | 🟡 | Le contrôle d'accès, les limites d'entrée ou les signatures sont implémentés et testés sur un ordinateur ; personne hors du projet ne les a relus |
 | Déploiement | 🟠 | Publié comme release ; l'installation sur une machine propre est documentée mais non consignée |
 | Exploitation | 🟡 | Expose /metrics au format texte de Prometheus avec un résumé de santé ; pas encore relié à un tableau de supervision |
-| Arrêt et sécurité | 🟠 | Le chemin d'arrêt et ses limites sont implémentés et testés avec des simulateurs ; ils n'ont jamais fonctionné sur une vraie machine, et ce n'est pas un système de sécurité certifié |
+| Arrêt et sécurité | 🟠 | Une partie du chemin d'arrêt est implémentée et testée avec des simulateurs ; le reste n'est pas encore raccordé, on ne peut donc pas compter sur ce programme pour arrêter seul l'équipement |
 | Protocole de l'équipement | 🟠 | Parle le protocole de son équipement ; vérifié seulement avec des doublures et des simulateurs, jamais avec la vraie machine |
 | Documentation | 🟢 | README en huit langues, vérifié par rapport au manifeste à chaque modification |
 

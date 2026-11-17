@@ -52,14 +52,14 @@ Cada línea es una parte de este repositorio y la luz dice hasta dónde llega ho
 | Área | Estado | Qué significa aquí |
 |---|---|---|
 | Software | 🟡 | Funciona para su propósito principal; la comprobación de honestidad de este README lista lo que aún falta |
-| Pruebas | 🟢 | 295 pruebas automáticas, ejecutadas en cada cambio |
+| Pruebas | 🟡 | 295 pruebas automáticas registradas; aún no se ha confirmado el número exacto ni un flujo de trabajo que las ejecute en cada cambio |
 | Hardware real | 🟠 | Solo simulado: probado con emuladores, dobles de prueba o simuladores; no consta ninguna ejecución en hardware real para esta versión |
 | Interfaz y protocolos | 🟡 | Las rutas o los mensajes que ofrece están documentados y probados con un cliente; aún no los han usado todos los clientes |
 | Integración | 🟠 | Sus mensajes y rutas se comprueban contra los contratos compartidos del SDK; no ha funcionado junto con el equipo real |
 | Seguridad | 🟡 | El control de acceso, los límites de entrada o las firmas están implementados y probados en un ordenador; nadie ajeno al proyecto los ha revisado |
 | Despliegue | 🟠 | Publicado como release; instalarlo en un equipo limpio está documentado pero no consta |
 | Operación | 🟡 | Expone /metrics en el formato de texto de Prometheus con un resumen de salud; todavía no está conectado a un panel de supervisión |
-| Parada y seguridad | 🟠 | El camino de parada y sus límites están implementados y probados con simuladores; nunca han funcionado en una máquina real, y esto no es un sistema de seguridad certificado |
+| Parada y seguridad | 🟠 | Una parte del camino de parada está implementada y probada con simuladores; el resto aún no está conectado, así que no se puede confiar en que este programa detenga el equipo por sí solo |
 | Protocolo del equipo | 🟠 | Habla el protocolo de su equipo; comprobado solo con dobles de prueba y simuladores, nunca con la máquina real |
 | Documentación | 🟢 | README en ocho idiomas, comprobado contra el manifiesto en cada cambio |
 
