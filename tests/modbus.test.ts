@@ -13,7 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import jwt from "jsonwebtoken";
 import request from "supertest";
-import { buildApp } from "../src/server.js";
+import { buildApp, isLoopbackHost } from "../src/server.js";
 import { decodeWords, encodeWords, modbusWriteRules, parseModbusMap, parseModbusTarget, readBackMatches } from "../src/modbus.js";
 import { startSimulatedModbus, type SimulatedModbusDevice } from "../src/modbusSimulator.js";
 
@@ -334,5 +334,52 @@ describe("writing through the write gate", () => {
     fs.writeFileSync(rules, JSON.stringify([{ target: "modbus:plc1/setpoint", type: "number", min: 0, max: 1 }]));
     process.env.GATEWAY_WRITE_RULES_FILE = rules;
     expect(() => buildApp()).toThrow(/two write rules/);
+  });
+});
+
+describe("the token that reads the cell state", () => {
+  const TOKEN = "cell-reader-credential-1";
+  function tokenFile(text = `${TOKEN}\n`) {
+    const file = path.join(dir, "cell.token");
+    fs.writeFileSync(file, text);
+    return file;
+  }
+
+  it("is sent to a state service that asks for it, and without it the write is refused", async () => {
+    cellServer.removeAllListeners("request");
+    cellServer.on("request", (req, res) => {
+      if (req.headers.authorization !== `Bearer ${TOKEN}`) {
+        res.statusCode = 401;
+        res.end();
+        return;
+      }
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ state: "READY", timestamp_utc: new Date().toISOString() }));
+    });
+    useMap(mapFor(device.port));
+    writeEnv();
+    const order = { protocol: "Modbus", operation: "write", target: "modbus:plc1/fan", value: true };
+    const without = await command(buildApp(), order);
+    expect(without.body.status).toBe("rejected_write");
+    process.env.GATEWAY_CELL_STATE_TOKEN_FILE = tokenFile();
+    const withToken = await command(buildApp(), order);
+    expect(withToken.body.status).toBe("write_prepared");
+  });
+
+  it("is not sent in clear to another machine, and an empty or broken file stops the start", () => {
+    useMap(mapFor(device.port));
+    writeEnv();
+    process.env.GATEWAY_CELL_STATE_TOKEN_FILE = tokenFile();
+    process.env.GATEWAY_CELL_STATE_URL = "http://cell.example.test/state";
+    expect(() => buildApp()).toThrow(/plain http/);
+    process.env.GATEWAY_CELL_STATE_ALLOW_PLAINTEXT = "1";
+    expect(() => buildApp()).not.toThrow();
+    process.env.GATEWAY_CELL_STATE_TOKEN_FILE = tokenFile("two words");
+    expect(() => buildApp()).toThrow(/one token/);
+  });
+
+  it("knows which hosts are this machine", () => {
+    for (const host of ["localhost", "127.0.0.1", "127.8.9.10", "[::1]"]) expect(isLoopbackHost(host)).toBe(true);
+    for (const host of ["192.168.1.10", "127.cell.example.test", "cell.local"]) expect(isLoopbackHost(host)).toBe(false);
   });
 });

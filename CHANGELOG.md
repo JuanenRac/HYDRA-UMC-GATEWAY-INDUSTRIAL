@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **A write confirmation is tied to its protocol:** a `modbus:` node can no longer be prepared as OPC-UA (nor an OPC-UA node as Modbus), the commit is refused when it names another protocol than the preparation, and the audit record says which protocol was prepared.
+- **A token to read the state of the cell:** `GATEWAY_CELL_STATE_TOKEN_FILE` (unset by default) sends it as a bearer credential; with it no redirection is followed and a plain `http://` URL to another machine stops the start unless `GATEWAY_CELL_STATE_ALLOW_PLAINTEXT=1`.
 - **Reading a Modbus register no longer needs the admin role when the writes are on:** the role check of the write gate was made for every operation of the protocol, so with the writes switched on a token with only the read scope was refused (and the refusal was written to the audit chain of the writes) while the same read worked with the writes off. The gate now sees only `write` and `write_commit`; a read goes straight to the usual path. Test added with an operator token.
 
 ## [0.2.1]

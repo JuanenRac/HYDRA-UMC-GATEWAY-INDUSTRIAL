@@ -414,3 +414,29 @@ describe("through POST /command with a simulated controller", () => {
     }
   });
 });
+
+describe("the confirmation and its protocol", () => {
+  const MODBUS: WriteRule = { target: "modbus:plc1/fan", type: "boolean" };
+  const ready = () => {
+    const t = clock();
+    return new WriteGate({ enabled: true, rules: [...RULES, MODBUS], cellState: async () => ({ state: "READY", atMs: t.now() }), now: t.now });
+  };
+
+  it("a node is only prepared with the protocol it belongs to", async () => {
+    const gate = ready();
+    expect(await gate.prepare("tech", MODBUS.target, true, "OPC-UA")).toEqual({ ok: false, reason: expect.stringContaining("does not belong") });
+    expect(await gate.prepare("tech", RULES[2].target, true, "Modbus")).toEqual({ ok: false, reason: expect.stringContaining("does not belong") });
+    expect(gate.pendingCount).toBe(0);
+    expect((await gate.prepare("tech", MODBUS.target, true, "Modbus")).ok).toBe(true);
+    expect(gate.auditChain().at(-1)?.detail).toContain("protocol Modbus");
+  });
+
+  it("a commit that names another protocol releases nothing and burns the id", async () => {
+    const gate = ready();
+    const prepared = await gate.prepare("tech", RULES[2].target, true, "OPC-UA");
+    if (!prepared.ok) throw new Error("prepare");
+    expect(await gate.commit("tech", prepared.confirmId, "Modbus")).toEqual({ ok: false, reason: expect.stringContaining("prepared for OPC-UA") });
+    expect((await gate.commit("tech", prepared.confirmId, "OPC-UA")).ok).toBe(false);
+    expect(verifyChain(gate.auditChain())).toBe(true);
+  });
+});

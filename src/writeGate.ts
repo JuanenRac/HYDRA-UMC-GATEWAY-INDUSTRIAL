@@ -151,6 +151,8 @@ interface Pending {
   target: string;
   value: WriteValue;
   expiresAtMs: number;
+  /** The protocol the write was prepared for; the confirmation only releases it for the same one. */
+  protocol?: string;
 }
 
 /** Why `value` cannot be written to the node of `rule`, or null when it can. */
@@ -299,9 +301,11 @@ export class WriteGate {
   }
 
   /** Step one: checks the write and, if it passes, hands out a confirmation id. Nothing is written. */
-  async prepare(caller: string | null, target: string, value: unknown): Promise<GateDecision> {
+  async prepare(caller: string | null, target: string, value: unknown, protocol?: string): Promise<GateDecision> {
     if (!this.enabled) return this.refuse("write_refused", caller, target, "writes are off (GATEWAY_WRITES is not 1)");
     if (this.auditSinkFailures > 0) return this.refuse("write_refused", caller, target, "the audit trail could not be written to disk: no write is accepted until the gateway is restarted");
+    // A "modbus:" node belongs to Modbus and to nothing else: a preparation that does not correspond is not even recorded as prepared.
+    if (protocol !== undefined && target.startsWith("modbus:") !== (protocol === "Modbus")) return this.refuse("write_refused", caller, target, `the node does not belong to the protocol ${protocol}`);
     const rule = this.rules.get(target);
     if (!rule) return this.refuse("write_refused", caller, target, "no write rule names this node");
     const problem = valueProblem(rule, value);
@@ -312,13 +316,13 @@ export class WriteGate {
     if (this.pending.size >= this.maxPending) return this.refuse("write_refused", caller, target, "too many writes wait for their confirmation");
     const confirmId = randomBytes(16).toString("hex");
     const expiresAtMs = this.now() + this.confirmTtlMs;
-    this.pending.set(confirmId, { caller, target, value: value as WriteValue, expiresAtMs });
-    this.record("write_prepared", caller, target, `value ${JSON.stringify(value)}, confirmation valid until ${new Date(expiresAtMs).toISOString()}`);
+    this.pending.set(confirmId, { caller, target, value: value as WriteValue, expiresAtMs, ...(protocol !== undefined ? { protocol } : {}) });
+    this.record("write_prepared", caller, target, `value ${JSON.stringify(value)}, confirmation valid until ${new Date(expiresAtMs).toISOString()}${protocol !== undefined ? `, protocol ${protocol}` : ""}`);
     return { ok: true, confirmId, expiresAtMs };
   }
 
   /** Step two: the confirmation id is used up whatever happens next, and the state of the cell is asked again. */
-  async commit(caller: string | null, confirmId: unknown): Promise<CommitDecision> {
+  async commit(caller: string | null, confirmId: unknown, protocol?: string): Promise<CommitDecision> {
     if (!this.enabled) return this.refuse("commit_refused", caller, "", "writes are off (GATEWAY_WRITES is not 1)");
     if (this.auditSinkFailures > 0) return this.refuse("commit_refused", caller, "", "the audit trail could not be written to disk: no write is accepted until the gateway is restarted");
     const entry = typeof confirmId === "string" ? this.pending.get(confirmId) : undefined;
@@ -326,6 +330,7 @@ export class WriteGate {
     if (!entry) return this.refuse("commit_refused", caller, "", "the confirmation id is unknown, expired or already used");
     if (entry.expiresAtMs <= this.now()) return this.refuse("commit_refused", caller, entry.target, "the confirmation id expired");
     if (entry.caller !== caller) return this.refuse("commit_refused", caller, entry.target, "the confirmation id was handed to another caller");
+    if (entry.protocol !== undefined && protocol !== undefined && entry.protocol !== protocol) return this.refuse("commit_refused", caller, entry.target, `the write was prepared for ${entry.protocol}, not for ${protocol}`);
     const cell = await this.cellProblem();
     if (cell) return this.refuse("commit_refused", caller, entry.target, cell);
     this.record("write_committed", caller, entry.target, `value ${JSON.stringify(entry.value)} released to the executor`);
