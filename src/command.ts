@@ -230,11 +230,11 @@ export class CommandDispatcher {
         return { status: "rejected_write", reason };
       }
       if (req.operation === "write") {
-        const decision = await gate.prepare(caller, req.target, req.value);
+        const decision = await gate.prepare(caller, req.target, req.value, req.protocol);
         return decision.ok ? { status: "write_prepared", confirmId: decision.confirmId, expiresAtMs: decision.expiresAtMs } : { status: "rejected_write", reason: decision.reason };
       }
       if (req.operation === "write_commit") {
-        const decision = await gate.commit(caller, req.confirmId);
+        const decision = await gate.commit(caller, req.confirmId, req.protocol);
         if (!decision.ok) return { status: "rejected_write", reason: decision.reason };
         // the released write goes through the same capacity and timeout rules as any other command
         const outcome = await this.run({ protocol: req.protocol, operation: "write", target: decision.target, value: decision.value, timeoutMs: req.timeoutMs, caller, roles: req.roles });

@@ -563,6 +563,28 @@ function simulatedWritesEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.GATEWAY_WRITE_SIMULATED ?? "").trim() === "1";
 }
 
+/** Whether a URL host is this machine (localhost, 127.0.0.0/8 or ::1). */
+export function isLoopbackHost(host: string): boolean {
+  const name = host.toLowerCase().replace(/^\[|\]$/g, "");
+  return name === "localhost" || name === "::1" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(name);
+}
+
+/**
+ * The token that reads the cell state (GATEWAY_CELL_STATE_TOKEN_FILE; unset: the state is read without credential). It is not sent in clear to another
+ * machine: an http:// URL that is not loopback stops the start unless GATEWAY_CELL_STATE_ALLOW_PLAINTEXT=1.
+ */
+function readCellStateToken(env: NodeJS.ProcessEnv, stateUrl: string): string | undefined {
+  const file = env.GATEWAY_CELL_STATE_TOKEN_FILE?.trim();
+  if (!file) return undefined;
+  const url = new URL(stateUrl);
+  if (url.protocol !== "https:" && !isLoopbackHost(url.hostname) && (env.GATEWAY_CELL_STATE_ALLOW_PLAINTEXT ?? "").trim() !== "1") {
+    throw new Error("GATEWAY_CELL_STATE_TOKEN_FILE: the token is not sent over plain http to another machine (use https, or GATEWAY_CELL_STATE_ALLOW_PLAINTEXT=1)");
+  }
+  const token = fs.readFileSync(file, "utf8").trim();
+  if (!/^[\x21-\x7e]+$/.test(token)) throw new Error("GATEWAY_CELL_STATE_TOKEN_FILE must hold one token of visible characters");
+  return token;
+}
+
 /**
  * The write gate from the environment. Writes are off unless GATEWAY_WRITES=1. When on, the node rules (GATEWAY_WRITE_RULES_FILE, a JSON list) and a
  * source of the cell state (GATEWAY_CELL_STATE_URL: a GET that answers {"state": "READY", "timestamp_utc": "..."}) are required, and the start fails without them:
@@ -591,8 +613,10 @@ function buildWriteGate(env: NodeJS.ProcessEnv = process.env, extraRules: readon
   const resume = auditFile ? loadAuditFile(auditFile, auditKey) : [];
   const ttl = Number(env.GATEWAY_WRITE_CONFIRM_TTL_MS);
   const maxAge = Number(env.GATEWAY_CELL_STATE_MAX_AGE_MS);
+  const stateToken = readCellStateToken(env, stateUrl);
   const cellState: CellStateProvider = async () => {
-    const response = await fetch(stateUrl, { signal: AbortSignal.timeout(1500) });
+    // With a token no redirection is followed: the credential is only for the URL the operator wrote.
+    const response = await fetch(stateUrl, { signal: AbortSignal.timeout(1500), ...(stateToken !== undefined ? { headers: { Authorization: `Bearer ${stateToken}` }, redirect: "error" as const } : {}) });
     if (!response.ok) return null;
     const body = (await response.json()) as { state?: unknown; timestamp_utc?: unknown };
     const at = typeof body.timestamp_utc === "string" ? Date.parse(body.timestamp_utc) : NaN;
